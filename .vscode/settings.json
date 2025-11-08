@@ -1,0 +1,18 @@
+{
+    "azureFunctions.deploySubpath": ".",
+    "azureFunctions.postDeployTask": "npm install (functions)",
+    "azureFunctions.projectLanguage": "TypeScript",
+    "azureFunctions.projectRuntime": "~3",
+    "debug.internalConsoleOptions": "neverOpen",
+    "azureFunctions.preDeployTask": "npm prune (functions)",
+    "cSpell.words": [
+        "EVERYTHINGISOK",
+        "ZENDESK",
+        "healthcheck",
+        "healthchecks",
+        "includecbproduct",
+        "Mproduct",
+        "prestart",
+        "Usageproduct"
+    ]
+}

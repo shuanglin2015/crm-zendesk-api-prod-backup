@@ -18,10 +18,10 @@ const retrieveData = async (log: Logger, updatedDateStart: string, updatedDateEn
 
     /* 
         Sample apiUrl: 
-        https://ingrammicrosupport1700367431.zendesk.com/api/v2/users
+        https://ingrammicrosupport1700367431.zendesk.com/api/v2/search.json?query=type:user role:agent
     */
 
-    let apiUrl = `${baseUrl}/users`;
+    let apiUrl = `${baseUrl}/search.json?query=type:user role:agent`;
     if (userId) {
         apiUrl = `${baseUrl}/users/${userId}.json`;
     }
@@ -29,19 +29,22 @@ const retrieveData = async (log: Logger, updatedDateStart: string, updatedDateEn
     let body = await response.json();
     let finalResults = [];
 
-    if (body && (userId || body.users)) {
-        let items = userId ? [body.user] : body.users;
+    if (body && (userId || body.results)) {
+        let items = userId ? [body.user] : body.results;
         await util.asyncForEach(items, async item => {
-            let result = await getResultFromZendeskAPI(log, item.id, item.updated_at, item.role, item.email, item.name, updatedDateStart, updatedDateEnd, userId);
-            if (result && result.length > 0) {
-                finalResults.push(...result);
+            // only sync agent users (1.5 million users on Production)
+            if (item.role == 'agent') {
+                let result = await getResultFromZendeskAPI(log, item.id, item.updated_at, item.role, item.email, item.name, updatedDateStart, updatedDateEnd, userId);
+                if (result && result.length > 0) {
+                    finalResults.push(...result);
+                }
             }
         });
     }
 
     let newApiUrl = body.next_page;
     if (newApiUrl) {
-        // newApiUrl example: "https://ingrammicrosupport1700367431.zendesk.com/api/v2/users.json?page=2"
+        // newApiUrl example: "https://ingrammicrosupport1700367431.zendesk.com/api/v2/search.json?page=2&query=type%3Auser+role%3Aagent
         const params = new URL(newApiUrl).searchParams;
         const pageNumber = Number(params.get("page"));
         const startPageStr = startPage ? startPage.trim() : "0";
@@ -61,12 +64,15 @@ const retrieveData = async (log: Logger, updatedDateStart: string, updatedDateEn
             }
             let newResponse = await fetchUtil.fetchData(log, newApiUrl, options);
             let newBody = await newResponse.json();
-            if (newBody && (userId || newBody.users)) {
-                let newItems = userId? [newBody.user] : newBody.users;
+            if (newBody && (userId || newBody.results)) {
+                let newItems = userId? [newBody.user] : newBody.results;
                 await util.asyncForEach(newItems, async item => {
-                    let result = await getResultFromZendeskAPI(log, item.id, item.updated_at, item.role, item.email, item.name, updatedDateStart, updatedDateEnd, userId);
-                    if (result && result.length > 0) {
-                        finalResults.push(...result);
+                    // only sync agent users (1.5 million users on Production)
+                    if (item.role == 'agent') {
+                        let result = await getResultFromZendeskAPI(log, item.id, item.updated_at, item.role, item.email, item.name, updatedDateStart, updatedDateEnd, userId);
+                        if (result && result.length > 0) {
+                            finalResults.push(...result);
+                        }
                     }
                 });
             }

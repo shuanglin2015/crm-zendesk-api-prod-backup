@@ -7,7 +7,7 @@ const AZURE_CLIENT_SECRET = () => process.env.AZURE_CLIENT_SECRET;
 const CRM_URL = () => process.env.CRM_URL;
 const BACKOFF_BASE_MS = () => process.env.BACKOFF_BASE_MS || '1000';
 const BACKOFF_CAP_MS = () => process.env.BACKOFF_CAP_MS || '60000';
-const ALLOWED_USER_NAMES = () => process.env.ALLOWED_USER_NAMES || ['shuang lin qu'];
+const ALLOWED_USER_NAMES = () => process.env.ALLOWED_USER_NAMES;
 
 export default {
   ZENDESK_API_BASEURL,

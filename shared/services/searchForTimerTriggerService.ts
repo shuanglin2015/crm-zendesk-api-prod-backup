@@ -190,7 +190,7 @@ const loopUntil = async (conditionFn, intervalMs = 10000) => {
 }
 
 const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
-    let isStage = true;  // TODO: change this to false when we deploy this Azure Functions to Production
+    let isStage = false;  // TODO: change this to false when we deploy this Azure Functions to Production
 
     // TODO: check if the form id is same on Production
 

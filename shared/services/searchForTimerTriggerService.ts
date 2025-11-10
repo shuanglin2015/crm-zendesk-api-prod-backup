@@ -4,7 +4,7 @@ import envUtil from '../utils/envUtil';
 import util from '../utils/util';
 import getJsonByIdService from '../services/getJsonByIdService';
 
-const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string) => {
+const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string) => {
     const processName = 'searchForTimerTriggerService.retrieveData';
     log(`🔎 [${processName}] Start retrieving Zendesk tickets updated between ${updatedDateStart} and ${updatedDateEnd}, created between ${createdDateStart} and ${createdDateEnd}...`);
 
@@ -33,13 +33,13 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
             https://ingrammicrosupport1700367431.zendesk.com/api/v2/search?query=type:ticket updated>2025-10-13 updated<2025-10-17 created>2025-04-15 created<2025-10-17&per_page=50&sort_by=updated_at&sort_order=asc
         */
         //let apiUrl = `${baseUrl}/search?query=type:ticket updated>${updatedDateStart} updated<${updatedDateEnd} created>${createdDateStart} created<${createdDateEnd}&per_page=${limit}&sort_by=created_at&sort_order=desc`;
-        let apiUrl = `${baseUrl}/search?query=type:ticket form:${formName} updated>${updatedDateStart} updated<${updatedDateEnd} created>${createdDateStart} created<${createdDateEnd}&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
+        let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
         try {
             let response = await fetchUtil.fetchData(log, apiUrl, options);
             
             // 200 OK
             if (response.status === 200) {
-                finalResults = await getFinalResults(accessToken, log, response, options, processName);
+                finalResults = await getFinalResults(accessToken, log, response, options, processName, endPage);
                 attempt = MAX_RETRIES;
                 return finalResults;
             }
@@ -81,7 +81,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
     return finalResults;
 };
 
-const getFinalResults = async (accessToken, log, response, options, processName) => {
+const getFinalResults = async (accessToken, log, response, options, processName, endPage) => {
     const MAX_RETRIES = 6;
     let finalResults = [];
     let body = await response.json();
@@ -116,6 +116,17 @@ const getFinalResults = async (accessToken, log, response, options, processName)
                             });
                         }
                         newApiUrl = newBody.next_page;
+                        // newApiUrl example: "https://ingrammicrosupport.zendesk.com/api/v2/search.json?page=2&per_page=50&query=type%3Aticket+form%3A%22gbl+-+support%22+updated%3E%222025-11-09T22..."
+                        const params = new URL(newApiUrl).searchParams;
+                        const pageNumber = Number(params.get("page"));
+                        let endPageStr = endPage ? endPage.trim() : "";
+                        if (!endPageStr) {
+                            endPageStr = "2";  // TODO: change this to "20" !!!!
+                            const endPageNumber =  Number(endPageStr) ;
+                            if (endPageNumber <= pageNumber) {
+                                return true;  // stop when it reaches the end page number
+                            }
+                        }
                         return newApiUrl ? false : true;  // stop when newApiUrl is empty
                     } else {
                         countQuit += 1;
@@ -411,8 +422,8 @@ const getLatestUpdatedAtValue = async (accessToken: string, log: Logger) => {
     try {
         let crmUrl = process.env.CRM_URL || "";
         // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskticketses?$select=im360_accountid,modifiedon&$orderby=modifiedon desc&$top=1
-        // Note: we cannot sort by "im360_updated_at" field, because it's string field, not datetime field, so we use "modifiedon" field to get the latest record
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$select=im360_accountid,modifiedon&$orderby=modifiedon desc&$top=1`;
+        // Note: we cannot sort by "im360_updated_at" field, because it's string field, not datetime field, so we use "modifiedon" field to get the latest record (or "im360_accountid")
+        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$select=im360_accountid,modifiedon&$orderby=im360_accountid desc&$top=1`;
         const getResponse = await fetch(query, {
             method: "GET",
             headers: {

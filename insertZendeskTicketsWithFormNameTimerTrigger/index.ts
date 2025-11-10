@@ -40,7 +40,7 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
             updatedDateStart = latestUpdatedAt;
         }
         let formName = "gbl - partner support";
-        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName);
+        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName, '');
         await util.asyncForEach(items, async ticket => {
             let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
             if (result == "UPDATE") {

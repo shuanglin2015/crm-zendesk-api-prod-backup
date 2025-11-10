@@ -39,7 +39,7 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
         if (latestUpdatedAt && latestUpdatedAt != '-') {
             updatedDateStart = latestUpdatedAt;
         }
-        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, '');
+        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, '', '');
         await util.asyncForEach(items, async ticket => {
             let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
             if (result == "UPDATE") {

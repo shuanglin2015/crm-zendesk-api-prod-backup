@@ -53,6 +53,7 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
     }
 
     let onlySyncLatestData = req.query.onlySyncLatestData;
+    let endPage = req.query.endPage;
 
     try {
         let update = 0;
@@ -67,7 +68,7 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
             }
         }
 
-        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName);
+        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName, endPage);
         await util.asyncForEach(items, async ticket => {
             let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
             if (result == "UPDATE") {

@@ -51,6 +51,13 @@ const retrieveData = async (log: Logger, updatedDateStart: string, updatedDateEn
                 });
             }
             newApiUrl = newBody.next_page;
+            if (newApiUrl) {
+                const params = new URL(newApiUrl).searchParams;
+                const pageNumber = Number(params.get("page"));
+                if (pageNumber > 20) {
+                    return true;  // stop when it reaches 20 * 50 = 1000 records (only one page on Production so far)
+                }
+            }
             return newApiUrl ? false : true;  // stop when newApiUrl is empty
         });
     }

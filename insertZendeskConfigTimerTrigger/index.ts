@@ -10,10 +10,10 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
 
   const today = new Date();
 
-    // default value: two days ago
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(today.getDate() - 2);
-    let updatedDateStart = twoDaysAgo.toISOString().split('T')[0];
+    // default value: seven days ago
+    const severnDaysAgo = new Date();
+    severnDaysAgo.setDate(today.getDate() - 7);
+    let updatedDateStart = severnDaysAgo.toISOString().split('T')[0];
 
     // default value: next day
     const nextDay = new Date();

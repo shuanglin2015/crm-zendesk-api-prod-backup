@@ -118,17 +118,19 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         }
                         newApiUrl = newBody.next_page;
                         // newApiUrl example: "https://ingrammicrosupport.zendesk.com/api/v2/search.json?page=2&per_page=50&query=type%3Aticket+form%3A%22gbl+-+support%22+updated%3E%222025-11-09T22..."
-                        const params = new URL(newApiUrl).searchParams;
-                        const pageNumber = Number(params.get("page"));
-                        let endPageStr = endPage ? endPage.trim() : "";
-                        if (!endPageStr) {
-                            endPageStr = envUtil.TICKETS_SYNC_END_PAGE_NUMBER();
+                        if (newApiUrl) {
+                            const params = new URL(newApiUrl).searchParams;
+                            const pageNumber = Number(params.get("page"));
+                            let endPageStr = endPage ? endPage.trim() : "";
                             if (!endPageStr) {
-                                endPageStr = "10";
-                            }
-                            const endPageNumber =  Number(endPageStr) ;
-                            if (endPageNumber <= pageNumber) {
-                                return true;  // stop when it reaches the end page number
+                                endPageStr = envUtil.TICKETS_SYNC_END_PAGE_NUMBER();
+                                if (!endPageStr) {
+                                    endPageStr = "10";
+                                }
+                                const endPageNumber =  Number(endPageStr) ;
+                                if (endPageNumber <= pageNumber) {
+                                    return true;  // stop when it reaches the end page number
+                                }
                             }
                         }
                         return newApiUrl ? false : true;  // stop when newApiUrl is empty

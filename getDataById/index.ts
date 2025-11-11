@@ -45,7 +45,8 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
     log(`allowedNames: ${allowedNames && allowedNames.toString()}`)
 
 
-    if (!allowedNames.includes(userName.toLocaleLowerCase()) && !(userName.toLocaleLowerCase() != 'shuang lin qu')) {
+    if (!allowedNames.includes(userName.toLocaleLowerCase())) {
+        log(`Your userName ${userName} is not in the allowedNames list.`);
         return;
     }
     log(`allowedNames: ${allowedNames.toString()}`);

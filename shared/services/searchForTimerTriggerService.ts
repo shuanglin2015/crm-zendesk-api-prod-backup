@@ -3,6 +3,7 @@ import fetchUtil from '../utils/fetchUtil';
 import envUtil from '../utils/envUtil';
 import util from '../utils/util';
 import getJsonByIdService from '../services/getJsonByIdService';
+import processDataService from "../services/insertZendeskConfigService";
 
 const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string) => {
     const processName = 'searchForTimerTriggerService.retrieveData';
@@ -121,7 +122,10 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         const pageNumber = Number(params.get("page"));
                         let endPageStr = endPage ? endPage.trim() : "";
                         if (!endPageStr) {
-                            endPageStr = envUtil.TICKETS_SYNC_END_PAGE_NUMBER;
+                            endPageStr = envUtil.TICKETS_SYNC_END_PAGE_NUMBER();
+                            if (!endPageStr) {
+                                endPageStr = "10";
+                            }
                             const endPageNumber =  Number(endPageStr) ;
                             if (endPageNumber <= pageNumber) {
                                 return true;  // stop when it reaches the end page number
@@ -201,9 +205,7 @@ const loopUntil = async (conditionFn, intervalMs = 10000) => {
 }
 
 const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
-    let isStage = false;  // TODO: change this to false when we deploy this Azure Functions to Production
-
-    // TODO: check if the form id is same on Production
+    let isStage = false;  // Production
 
     // GBL - Support (30549887549716)
     // GBL - Partner Support (34539140148756)
@@ -214,6 +216,15 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
         result.strCountry = await getZendeskConfigNameByValue(accessToken, log, countryValue);
         if (!result.strCountry) {
             result.strCountry = countryValue ? await getCustomFieldValue(log, countryFieldId.toString(), countryValue) : '';
+            if (countryValue && result.strCountry) {
+                const configData = {
+                            im360_category: 'ticket_fields',
+                            im360_key: countryFieldId.toString(),
+                            im360_value: countryValue,
+                            im360_name: result.strCountry
+                        };
+                await processDataService.upsertZendeskConfig(log, accessToken, configData);
+            }
         }
         let bcnFieldId = isStage ? 21077919616660 : 9213900294676;
         const objBCN = result.custom_fields && result.custom_fields.find(item => item.id === bcnFieldId);
@@ -237,6 +248,17 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
             let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
             let userData = userDataResult ? await userDataResult.json() : '';
             result.requesterEmail = userData.user ? userData.user.email : '-';
+            if (jsonId && result.requesterEmail) {
+                // upsert user:
+                const configData = {
+                        im360_category: 'users',
+                        im360_key: jsonId.toString(),
+                        im360_value: userData && userData.user && userData.user.role,
+                        im360_name: result.requesterEmail,
+                        im360_description: userData && userData.user && userData.user.name
+                    };
+                await processDataService.upsertZendeskConfig(log, accessToken, configData);
+            }
         }
 
         // Reseller Name:
@@ -247,6 +269,16 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
             let orgDataResult = jsonIdOrg ? await getJsonByIdService.retrieveData(log, jsonPathOrg, jsonIdOrg) : '';
             let orgData = orgDataResult ? await orgDataResult.json() : '';
             result.requesterName = orgData.organization ? orgData.organization.name : '-';
+            if (jsonIdOrg && result.requesterName) {
+                // upsert organization:
+                const orgData = {
+                        im360_category: 'organizations',
+                        im360_key: jsonIdOrg.toString(),
+                        im360_value: result.requesterName,
+                        im360_name: result.requesterName
+                    };
+                await processDataService.upsertZendeskConfig(log, accessToken, orgData);
+            }
         }
         
         let domainFieldId = isStage ? 31042462931476 : 34698829065236;
@@ -255,6 +287,15 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
         result.strDomain = await getZendeskConfigNameByValue(accessToken, log, domainValue);
         if (!result.strDomain) {
             result.strDomain = domainValue? await getCustomFieldValue(log, domainFieldId.toString(), domainValue) : '';
+            if (domainValue && result.strDomain) {
+                const configData = {
+                            im360_category: 'ticket_fields',
+                            im360_key: domainFieldId.toString(),
+                            im360_value: domainValue,
+                            im360_name: result.strDomain
+                        };
+                await processDataService.upsertZendeskConfig(log, accessToken, configData);
+            }
         }
         //result.strAccountId = await getAccountIdByCountryAndBCN(accessToken, log, result.strCountry, result.strBCN);
         result.strAccountId = result.updated_at;   // save "updated_at" value to strAccountId temporarily to get latest updated_at value in CRM

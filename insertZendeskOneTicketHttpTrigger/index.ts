@@ -1,6 +1,6 @@
 import { AzureFunction, Context, HttpRequest, Logger } from "@azure/functions"
 import processDataService from '../shared/services/insertZendeskTicketsService';
-import searchService from '../shared/services/searchForOneTicketService';
+import searchService from '../shared/services/searchForTimerTriggerService';
 import util from '../shared/utils/util';
 import crmUtil from '../shared/utils/crmUtil';
 
@@ -14,7 +14,7 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
         let update = 0;
         let insert = 0;
         let accessToken = await crmUtil.getAccessToken(log);
-        const items = await searchService.retrieveData(log, accessToken, ticketId);
+        const items = await searchService.retrieveData(log, accessToken, '', '', '', '', '50', '', '', ticketId);
         await util.asyncForEach(items, async ticket => {
             let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
             if (result == "UPDATE") {

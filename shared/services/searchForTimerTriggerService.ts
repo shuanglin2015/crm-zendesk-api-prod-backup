@@ -5,7 +5,7 @@ import util from '../utils/util';
 import getJsonByIdService from '../services/getJsonByIdService';
 import processDataService from "../services/insertZendeskConfigService";
 
-const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string) => {
+const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string, ticketId: string = '') => {
     const processName = 'searchForTimerTriggerService.retrieveData';
     log(`🔎 [${processName}] Start retrieving Zendesk tickets updated between ${updatedDateStart} and ${updatedDateEnd}, created between ${createdDateStart} and ${createdDateEnd}...`);
 
@@ -21,6 +21,26 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
     const baseUrl = envUtil.ZENDESK_API_BASEURL();
     if (!formName) {
         formName = "gbl - support";
+    }
+
+    /* 
+        only search one ticket, sample apiUrl: 
+        https://ingrammicrosupport1700367431.zendesk.com/api/v2/tickets/35116
+    */
+    if (ticketId) {
+        let apiUrlForOneTicket = `${baseUrl}/tickets/${ticketId}`;
+        let finalResultsForOneTicket = [];
+        try {
+            let response = await fetchUtil.fetchData(log, apiUrlForOneTicket, options);
+            
+            // 200 OK
+            if (response.status === 200) {
+                finalResultsForOneTicket = await getFinalResultsForOneTicket(accessToken, log, response);
+            }
+        } catch (err: any) {
+            console.error(`[searchForOneTicketService] error(ticketId: ${ticketId}): ${err && err.message}.`);
+        }
+        return finalResultsForOneTicket;
     }
 
     // API Request & Retry Configuration
@@ -183,6 +203,19 @@ const getRateLimitStatus = async (log, baseUrl, options, apiCounter, processName
     }
 }
 
+const getFinalResultsForOneTicket = async (accessToken, log, response) => {
+    let finalResults = [];
+    let body = await response.json();
+    if (body && body.ticket) {
+        let result = body.ticket;
+        let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
+        if (ticket) {
+            finalResults.push(ticket);
+        }
+    }
+    return finalResults;
+}
+
 const getFinalResults = async (accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs) => {
     const MAX_RETRIES = 6;
     let finalResults = [];
@@ -190,7 +223,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
     if (body && body.results) {
         let items = body.results;
         await util.asyncForEach(items, async result => {
-            let ticket = await getTicketFromZendeskAPI(accessToken, log, result);
+            let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
             if (ticket) {
                 finalResults.push(ticket);
             }
@@ -227,7 +260,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         if (newBody && newBody.results) {
                             let newItems = newBody.results;
                             await util.asyncForEach(newItems, async result => {
-                                let ticket = await getTicketFromZendeskAPI(accessToken, log, result);
+                                let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
                                 if (ticket) {
                                     finalResults.push(ticket);
                                 }
@@ -323,7 +356,7 @@ const loopUntil = async (conditionFn, intervalMs = 10000) => {
   }
 }
 
-const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
+const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) => {
     let isStage = false;  // Production
 
     // GBL - Support (30549887549716)

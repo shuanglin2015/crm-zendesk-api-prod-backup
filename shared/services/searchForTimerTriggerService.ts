@@ -211,123 +211,108 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
 
     // GBL - Support (30549887549716)
     // GBL - Partner Support (34539140148756)
-    // if (result && (result.ticket_form_id == 30549887549716 || result.ticket_form_id == 34539140148756)) {
-        let countryFieldId = isStage ? 31959436739604 : 35138178531732;
-        const objCountry = result.custom_fields && result.custom_fields.find(item => item.id === countryFieldId);
-        const countryValue = objCountry ? objCountry.value : '';
-        result.strCountry = await getZendeskConfigNameByValue(accessToken, log, countryValue);
-        if (!result.strCountry) {
-            result.strCountry = countryValue ? await getCustomFieldValue(log, countryFieldId.toString(), countryValue) : '';
-            if (countryValue && result.strCountry) {
-                const configData = {
-                            im360_category: 'ticket_fields',
-                            im360_key: countryFieldId.toString(),
-                            im360_value: countryValue,
-                            im360_name: result.strCountry
-                        };
-                await processDataService.upsertZendeskConfig(log, accessToken, configData);
-            }
-        }
-        let bcnFieldId = isStage ? 21077919616660 : 9213900294676;
-        const objBCN = result.custom_fields && result.custom_fields.find(item => item.id === bcnFieldId);
-        const bcnValue = objBCN ? objBCN.value : '';
-        // result.strBCN = await getZendeskConfigNameByValue(accessToken, log, bcnValue);
-        // if (!result.strBCN && bcnValue != 'NA' && bcnValue != 'N/A') {
-        //     result.strBCN = bcnValue ? await getCustomFieldValue(log, bcnFieldId.toString(), bcnValue) : '';
-        // }
-        result.strBCN = bcnValue ? bcnValue : '-';
-        let jsonPath = 'users';
-        let jsonId = result.requester_id;
-        result.requesterEmail = await getZendeskConfigEmailByKey(accessToken, log, jsonId);
-        //result.requesterName = await getZendeskConfigNameByKey(accessToken, log, jsonId);
-        // if (!result.requesterEmail || !result.requesterName) {
-        //     let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
-        //     let userData = userDataResult ? await userDataResult.json() : '';
-        //     result.requesterEmail = userData.user ? userData.user.email : '-';
-        //     result.requesterName = userData.user ? userData.user.name : '-';
-        // }
-        if (!result.requesterEmail) {
-            let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
-            let userData = userDataResult ? await userDataResult.json() : '';
-            result.requesterEmail = userData.user ? userData.user.email : '-';
-            if (jsonId && result.requesterEmail) {
-                // upsert user:
-                const configData = {
-                        im360_category: 'users',
-                        im360_key: jsonId.toString(),
-                        im360_value: userData && userData.user && userData.user.role,
-                        im360_name: result.requesterEmail,
-                        im360_description: userData && userData.user && userData.user.name
+    let countryFieldId = isStage ? 31959436739604 : 35138178531732;
+    const objCountry = result.custom_fields && result.custom_fields.find(item => item.id === countryFieldId);
+    const countryValue = objCountry ? objCountry.value : '';
+    result.strCountry = await getZendeskConfigNameByValue(accessToken, log, countryValue);
+    if (!result.strCountry) {
+        result.strCountry = countryValue ? await getCustomFieldValue(log, countryFieldId.toString(), countryValue) : '';
+        if (countryValue && result.strCountry) {
+            const configData = {
+                        im360_category: 'ticket_fields',
+                        im360_key: countryFieldId.toString(),
+                        im360_value: countryValue,
+                        im360_name: result.strCountry
                     };
-                await processDataService.upsertZendeskConfig(log, accessToken, configData);
-            }
+            await processDataService.upsertZendeskConfig(log, accessToken, configData);
         }
+    }
+    let bcnFieldId = isStage ? 21077919616660 : 9213900294676;
+    const objBCN = result.custom_fields && result.custom_fields.find(item => item.id === bcnFieldId);
+    const bcnValue = objBCN ? objBCN.value : '';
+    result.strBCN = bcnValue ? bcnValue : '-';
+    let jsonPath = 'users';
+    let jsonId = result.requester_id;
+    result.requesterEmail = await getZendeskConfigEmailByKey(accessToken, log, jsonId);
+    if (!result.requesterEmail) {
+        let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
+        let userData = userDataResult ? await userDataResult.json() : '';
+        result.requesterEmail = userData.user ? userData.user.email : '-';
+        if (jsonId && result.requesterEmail) {
+            // upsert user:
+            const configData = {
+                    im360_category: 'users',
+                    im360_key: jsonId.toString(),
+                    im360_value: userData && userData.user && userData.user.role,
+                    im360_name: result.requesterEmail,
+                    im360_description: userData && userData.user && userData.user.name
+                };
+            await processDataService.upsertZendeskConfig(log, accessToken, configData);
+        }
+    }
 
-        // Reseller Name:
-        let jsonPathOrg = 'organizations';
-        let jsonIdOrg = result.organization_id;
-        result.requesterName = await getZendeskResellerNameByKey(accessToken, log, jsonIdOrg);
-        if (!result.requesterName) {
-            let orgDataResult = jsonIdOrg ? await getJsonByIdService.retrieveData(log, jsonPathOrg, jsonIdOrg) : '';
-            let orgData = orgDataResult ? await orgDataResult.json() : '';
-            result.requesterName = orgData.organization ? orgData.organization.name : '-';
-            if (jsonIdOrg && result.requesterName) {
-                // upsert organization:
-                const orgData = {
-                        im360_category: 'organizations',
-                        im360_key: jsonIdOrg.toString(),
-                        im360_value: result.requesterName,
-                        im360_name: result.requesterName
+    // Reseller Name:
+    let jsonPathOrg = 'organizations';
+    let jsonIdOrg = result.organization_id;
+    result.requesterName = await getZendeskResellerNameByKey(accessToken, log, jsonIdOrg);
+    if (!result.requesterName) {
+        let orgDataResult = jsonIdOrg ? await getJsonByIdService.retrieveData(log, jsonPathOrg, jsonIdOrg) : '';
+        let orgData = orgDataResult ? await orgDataResult.json() : '';
+        result.requesterName = orgData.organization ? orgData.organization.name : '-';
+        if (jsonIdOrg && result.requesterName) {
+            // upsert organization:
+            const orgData = {
+                    im360_category: 'organizations',
+                    im360_key: jsonIdOrg.toString(),
+                    im360_value: result.requesterName,
+                    im360_name: result.requesterName
+                };
+            await processDataService.upsertZendeskConfig(log, accessToken, orgData);
+        }
+    }
+    
+    let domainFieldId = isStage ? 31042462931476 : 34698829065236;
+    const objDomain = result.custom_fields && result.custom_fields.find(item => item.id === domainFieldId);
+    const domainValue = objDomain ? objDomain.value : '';
+    result.strDomain = await getZendeskConfigNameByValue(accessToken, log, domainValue);
+    if (!result.strDomain) {
+        result.strDomain = domainValue? await getCustomFieldValue(log, domainFieldId.toString(), domainValue) : '';
+        if (domainValue && result.strDomain) {
+            const configData = {
+                        im360_category: 'ticket_fields',
+                        im360_key: domainFieldId.toString(),
+                        im360_value: domainValue,
+                        im360_name: result.strDomain
                     };
-                await processDataService.upsertZendeskConfig(log, accessToken, orgData);
-            }
+            await processDataService.upsertZendeskConfig(log, accessToken, configData);
         }
-        
-        let domainFieldId = isStage ? 31042462931476 : 34698829065236;
-        const objDomain = result.custom_fields && result.custom_fields.find(item => item.id === domainFieldId);
-        const domainValue = objDomain ? objDomain.value : '';
-        result.strDomain = await getZendeskConfigNameByValue(accessToken, log, domainValue);
-        if (!result.strDomain) {
-            result.strDomain = domainValue? await getCustomFieldValue(log, domainFieldId.toString(), domainValue) : '';
-            if (domainValue && result.strDomain) {
-                const configData = {
-                            im360_category: 'ticket_fields',
-                            im360_key: domainFieldId.toString(),
-                            im360_value: domainValue,
-                            im360_name: result.strDomain
-                        };
-                await processDataService.upsertZendeskConfig(log, accessToken, configData);
-            }
-        }
-        //result.strAccountId = await getAccountIdByCountryAndBCN(accessToken, log, result.strCountry, result.strBCN);
-        result.strAccountId = result.updated_at;   // save "updated_at" value to strAccountId temporarily to get latest updated_at value in CRM
-        //const resolveTimeInfo = await getResolveTimeInfo(log, result);
+    }
+    //result.strAccountId = await getAccountIdByCountryAndBCN(accessToken, log, result.strCountry, result.strBCN);
+    result.strAccountId = result.updated_at;   // save "updated_at" value to strAccountId temporarily to get latest updated_at value in CRM
+    //const resolveTimeInfo = await getResolveTimeInfo(log, result);
 
-        /* 
-            "im360_name" is same with "im360_ticketsubjectline";
-            if "im360_resolved_at" is empty, set its value to "result.created_at" (resolveHours will be 0)
-        */
-        let ticket = {
-            im360_ticketid: result.id ? result.id.toString() : '-',
-            im360_name: result.subject ? result.subject : '-',
-            im360_country: result.strCountry ? result.strCountry : '-',
-            im360_ingrambcn: result.strBCN ? result.strBCN : '-',
-            im360_partneremailaddress: result.requesterEmail ? result.requesterEmail : '-',
-            im360_resellername: result.requesterName ? result.requesterName : '-',
-            im360_ticketsubjectline: result.subject ? result.subject : '-',
-            im360_status: result.status ? result.status.charAt(0).toUpperCase() + result.status.slice(1) : '-',
-            im360_domain: result.strDomain ? result.strDomain : '-',
-            im360_priority: result.priority ? result.priority.charAt(0).toUpperCase() + result.priority.slice(1) : '-',
-            im360_accountid: result.strAccountId ? result.strAccountId : '-',
-            im360_created_at: result.created_at ? result.created_at : new Date(),
-            im360_updated_at: result.updated_at ? result.updated_at : result.created_at,
-            // im360_resolved_at:  resolveTimeInfo.solved_at ? resolveTimeInfo.solved_at : result.created_at,
-            // im360_resolvehours: resolveTimeInfo.resolveHours ? resolveTimeInfo.resolveHours : 0
-        };
-        return ticket;
-    // } else {
-    //     return '';
-    // }
+    /* 
+        "im360_name" is same with "im360_ticketsubjectline";
+        if "im360_resolved_at" is empty, set its value to "result.created_at" (resolveHours will be 0)
+    */
+    let ticket = {
+        im360_ticketid: result.id ? result.id.toString() : '-',
+        im360_name: result.subject ? result.subject : '-',
+        im360_country: result.strCountry ? result.strCountry : '-',
+        im360_ingrambcn: result.strBCN ? result.strBCN : '-',
+        im360_partneremailaddress: result.requesterEmail ? result.requesterEmail : '-',
+        im360_resellername: result.requesterName ? result.requesterName : '-',
+        im360_ticketsubjectline: result.subject ? result.subject : '-',
+        im360_status: result.status ? result.status.charAt(0).toUpperCase() + result.status.slice(1) : '-',
+        im360_domain: result.strDomain ? result.strDomain : '-',
+        im360_priority: result.priority ? result.priority.charAt(0).toUpperCase() + result.priority.slice(1) : '-',
+        im360_accountid: result.strAccountId ? result.strAccountId : '-',
+        im360_created_at: result.created_at ? result.created_at : new Date(),
+        im360_updated_at: result.updated_at ? result.updated_at : result.created_at,
+        // im360_resolved_at:  resolveTimeInfo.solved_at ? resolveTimeInfo.solved_at : result.created_at,
+        // im360_resolvehours: resolveTimeInfo.resolveHours ? resolveTimeInfo.resolveHours : 0
+    };
+    return ticket;
 }
 
 const getCustomFieldValue = async (log: Logger, fieldId: string, fieldValue: string) => {

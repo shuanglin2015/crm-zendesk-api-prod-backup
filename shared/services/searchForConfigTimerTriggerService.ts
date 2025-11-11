@@ -85,8 +85,8 @@ const getResultFromZendeskAPI = async (log: Logger, itemId, itemUpdatedAt,  opti
                     results.push({
                         im360_category: 'ticket_fields',
                         im360_key: itemId.toString(),
-                        im360_value: option.value,
-                        im360_name: option.name
+                        im360_value: option.value && option.value.trim(),
+                        im360_name: option.name && option.name.trim()
                     });
                 }
             }

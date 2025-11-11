@@ -103,13 +103,6 @@ const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
         let jsonPath = 'users';
         let jsonId = result.requester_id;
         result.requesterEmail = await getZendeskConfigEmailByKey(accessToken, log, jsonId);
-        // result.requesterName = await getZendeskConfigNameByKey(accessToken, log, jsonId);
-        // if (!result.requesterEmail || !result.requesterName) {
-        //     let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
-        //     let userData = userDataResult ? await userDataResult.json() : '';
-        //     result.requesterEmail = userData.user ? userData.user.email : '-';
-        //     result.requesterName = userData.user ? userData.user.name : '-';
-        // }
 
         if (!result.requesterEmail) {
             let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
@@ -175,7 +168,7 @@ const getCustomFieldValue = async (log: Logger, fieldId: string, fieldValue: str
         const obj = fieldData.ticket_field.custom_field_options.find(item => item.value === fieldValue);
         result = obj ? obj.name : fieldValue;
     }
-    return result;
+    return result && result.trim();
 };
 
 const getZendeskResellerNameByKey = async (accessToken: string, log: Logger, configKey: string) => {
@@ -232,35 +225,6 @@ const getZendeskConfigEmailByKey = async (accessToken: string, log: Logger, conf
         }
     } catch (err) {
         log("❌ Error in getZendeskConfigEmailByKey:", err.message);
-    }
-    return configName;
-}
-
-const getZendeskConfigNameByKey = async (accessToken: string, log: Logger, configKey: string) => {
-    let configName = '';
-    if (!configKey) {
-        return configName;
-    }
-
-    try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value,im360_description&$filter=im360_category eq 'users' and im360_key eq '36171835936404'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value,im360_description&$filter=im360_category eq 'users' and im360_key eq '${configKey}'`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
-
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            configName = getData.value[0].im360_description;
-        }
-    } catch (err) {
-        log("❌ Error in getZendeskConfigNameByKey:", err.message);
     }
     return configName;
 }

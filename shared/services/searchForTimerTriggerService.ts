@@ -160,15 +160,14 @@ const waitUntilNextMinute = async (processName = "WAIT_UNTIL_NEXT_MINUTE") => {
  */
 const getRateLimitStatus = async (log, baseUrl, options, apiCounter, processName = "RATE_LIMIT_CHECK") =>  {
     try {
-        const apiUrl = `https://${baseUrl}/users/me.json`;
+        const apiUrl = `${baseUrl}/users/me.json`;
 
         const resp = await fetchUtil.fetchData(log, apiUrl, options);
-        const headers = resp.headers || {};
-
-        const remainingHeader =
-            headers['x-rate-limit-remaining'] ||
-            headers['X-Rate-Limit-Remaining'] ||
-            headers['ratelimit-remaining'];
+        let headers = resp.headers;
+        let remainingHeader = "0";
+        if (headers) {
+            remainingHeader = headers.get('x-rate-limit-remaining') || headers.get('X-Rate-Limit-Remaining') || headers.get('ratelimit-remaining');
+        }
 
         let remainingInt = 0;
         if (remainingHeader && !isNaN(parseInt(remainingHeader, 10))) {
@@ -443,7 +442,7 @@ const getCustomFieldValue = async (log: Logger, fieldId: string, fieldValue: str
         const obj = fieldData.ticket_field.custom_field_options.find(item => item.value === fieldValue);
         result = obj ? obj.name : fieldValue;
     }
-    return result;
+    return result && result.trim();
 };
 
 const getZendeskResellerNameByKey = async (accessToken: string, log: Logger, configKey: string) => {
@@ -500,35 +499,6 @@ const getZendeskConfigEmailByKey = async (accessToken: string, log: Logger, conf
         }
     } catch (err) {
         log("❌ Error in getZendeskConfigEmailByKey:", err.message);
-    }
-    return configName;
-}
-
-const getZendeskConfigNameByKey = async (accessToken: string, log: Logger, configKey: string) => {
-    let configName = '';
-    if (!configKey) {
-        return configName;
-    }
-
-    try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value,im360_description&$filter=im360_category eq 'users' and im360_key eq '36171835936404'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value,im360_description&$filter=im360_category eq 'users' and im360_key eq '${configKey}'`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
-
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            configName = getData.value[0].im360_description;
-        }
-    } catch (err) {
-        log("❌ Error in getZendeskConfigNameByKey:", err.message);
     }
     return configName;
 }

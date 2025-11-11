@@ -121,7 +121,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         const pageNumber = Number(params.get("page"));
                         let endPageStr = endPage ? endPage.trim() : "";
                         if (!endPageStr) {
-                            endPageStr = "2";  // TODO: change this to "20" !!!!
+                            endPageStr = envUtil.TICKETS_SYNC_END_PAGE_NUMBER;
                             const endPageNumber =  Number(endPageStr) ;
                             if (endPageNumber <= pageNumber) {
                                 return true;  // stop when it reaches the end page number

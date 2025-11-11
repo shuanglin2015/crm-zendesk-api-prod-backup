@@ -8,6 +8,7 @@ const CRM_URL = () => process.env.CRM_URL;
 const BACKOFF_BASE_MS = () => process.env.BACKOFF_BASE_MS || '1000';
 const BACKOFF_CAP_MS = () => process.env.BACKOFF_CAP_MS || '60000';
 const ALLOWED_USER_NAMES = () => process.env.ALLOWED_USER_NAMES;
+const TICKETS_SYNC_END_PAGE_NUMBER = () => process.env.TICKETS_SYNC_END_PAGE_NUMBER;
 
 export default {
   ZENDESK_API_BASEURL,
@@ -19,5 +20,6 @@ export default {
   CRM_URL,
   BACKOFF_BASE_MS,
   BACKOFF_CAP_MS,
-  ALLOWED_USER_NAMES
+  ALLOWED_USER_NAMES,
+  TICKETS_SYNC_END_PAGE_NUMBER
 };

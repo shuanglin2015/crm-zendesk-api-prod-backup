@@ -23,11 +23,27 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         formName = "gbl - support";
     }
 
-    // API Request & Retry Configuration: Maximum number of retry attempts for failed API calls
-    const MAX_RETRIES = 6;
+    // API Request & Retry Configuration
+    const MAX_RETRIES = 6;                                                 // Maximum number of retry attempts for failed API calls
+    const API_LIMIT_THRESHOLD = 1500                                       // Conservative threshold for API quota checks
+    const INCREMENTAL_API_CALL_GAP = envUtil.INCREMENTAL_API_CALL_GAP();   // Delay between incremental API calls (~3 calls/min)
+    let incrementalApiCallGapInt = 20;
+    if (INCREMENTAL_API_CALL_GAP && !isNaN(parseInt(INCREMENTAL_API_CALL_GAP, 10))) {
+        incrementalApiCallGapInt = parseInt(INCREMENTAL_API_CALL_GAP, 10);
+    }
+    const incrementalApiCallGapIntMs = incrementalApiCallGapInt * 1000;
+    const apiCounter = {
+            attempted: 0,
+            successful: 0,
+            incremental_api_calls: 0,
+            rate_limit_checks: 0,
+            metric_fetch_calls: 0,
+            standard_api_calls: 0
+        };
     let finalResults = [];
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        apiCounter['attempted'] += 1
         /* 
             Sample apiUrl: 
             https://ingrammicrosupport1700367431.zendesk.com/api/v2/search?query=type:ticket updated>2025-11-06T21:10:56Z form:"gbl - support"
@@ -36,11 +52,28 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         //let apiUrl = `${baseUrl}/search?query=type:ticket updated>${updatedDateStart} updated<${updatedDateEnd} created>${createdDateStart} created<${createdDateEnd}&per_page=${limit}&sort_by=created_at&sort_order=desc`;
         let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
         try {
+            await waitUntilNextMinute();
+            let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
+            while (true) {
+                if (remaining < API_LIMIT_THRESHOLD) {
+                    log(`Rate limit low: (${remaining}); waiting...`);
+                    await sleep(incrementalApiCallGapIntMs);
+
+                    remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
+                    log(`New rate limit remaining: ${remaining}`);
+                } else {
+                    // All good, safe to proceed
+                    break;
+                }
+                // small delay to avoid tight loop spinning
+                await sleep(200);
+            }
+
             let response = await fetchUtil.fetchData(log, apiUrl, options);
             
             // 200 OK
             if (response.status === 200) {
-                finalResults = await getFinalResults(accessToken, log, response, options, processName, endPage);
+                finalResults = await getFinalResults(accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs);
                 attempt = MAX_RETRIES;
                 return finalResults;
             }
@@ -82,7 +115,76 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
     return finalResults;
 };
 
-const getFinalResults = async (accessToken, log, response, options, processName, endPage) => {
+/**
+ * Align API calls to minute boundaries for consistent rate limiting.
+ *
+ * This function helps maintain steady API call rates by waiting until the start
+ * of the next minute before proceeding. This is useful for incremental endpoints
+ * that have strict per-minute rate limits and helps avoid burst traffic patterns.
+ *
+ * @param {string} processName - Task context for error logging
+ */
+const waitUntilNextMinute = async (processName = "WAIT_UNTIL_NEXT_MINUTE") => {
+  try {
+    const now = new Date();
+    const seconds = now.getUTCSeconds();
+
+    if (seconds !== 0) {
+      const secondsToWait = 60 - seconds;
+      console.info(
+        `⏳ Waiting ${secondsToWait.toFixed(
+          2
+        )}s until the start of the next minute...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, secondsToWait * 1000));
+    } else {
+      console.info("✅ Aligned to minute boundary. Proceeding...");
+    }
+  } catch (e) {
+    console.error(`❌ Exception in ${processName}: ${e}`);
+  }
+};
+
+/**
+ * Check current API rate limit quota remaining for the Zendesk account.
+ * 
+ * Makes a lightweight API call to /users/me.json to inspect rate limit headers.
+ * This helps the pipeline make informed decisions about when to proceed with
+ * bulk API operations vs. when to wait for quota renewal.
+ * 
+ * @param {Object} session - Axios instance or session with authentication
+ * @param {string} baseUrl - Zendesk account baseUrl
+ * @param {Object} apiCounter - Global API tracking counters
+ * @param {string} [processName="RATE_LIMIT_CHECK"] - Task context for logging
+ * @returns {Promise<number>} Number of API calls remaining (0 if unknown)
+ */
+const getRateLimitStatus = async (log, baseUrl, options, apiCounter, processName = "RATE_LIMIT_CHECK") =>  {
+    try {
+        const apiUrl = `https://${baseUrl}/users/me.json`;
+
+        const resp = await fetchUtil.fetchData(log, apiUrl, options);
+        const headers = resp.headers || {};
+
+        const remainingHeader =
+            headers['x-rate-limit-remaining'] ||
+            headers['X-Rate-Limit-Remaining'] ||
+            headers['ratelimit-remaining'];
+
+        let remainingInt = 0;
+        if (remainingHeader && !isNaN(parseInt(remainingHeader, 10))) {
+            remainingInt = parseInt(remainingHeader, 10);
+        }
+
+        log(`🧮 Rate limit remaining (Support pool): ${remainingInt}`);
+
+        return remainingInt;
+    } catch (error) {
+        log.error(`❌ Exception in ${processName} (apiHits: ${apiCounter?.attempted || 0}): ${error.message}`);
+        return 0; // Return conservative value
+    }
+}
+
+const getFinalResults = async (accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs) => {
     const MAX_RETRIES = 6;
     let finalResults = [];
     let body = await response.json();
@@ -102,6 +204,22 @@ const getFinalResults = async (accessToken, log, response, options, processName,
         await loopUntil(async () => {
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
+                    await waitUntilNextMinute();
+                    let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
+                    while (true) {
+                        if (remaining < API_LIMIT_THRESHOLD) {
+                            log(`Rate limit low: (${remaining}); waiting...`);
+                            await sleep(incrementalApiCallGapIntMs);
+
+                            remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
+                            log(`New rate limit remaining: ${remaining}`);
+                        } else {
+                            // All good, safe to proceed
+                            break;
+                        }
+                        // Optional small delay to avoid tight loop spinning
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
                     let newResponse = await fetchUtil.fetchData(log, newApiUrl, options);
                     
                     // 200 OK

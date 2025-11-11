@@ -69,14 +69,6 @@ function computeBackoff(attempt: number): number {
     return Math.floor(jitter);
 }
 
-const loopUntil = async (conditionFn, intervalMs = 5000) => {
-  while (true) {
-    const result = await conditionFn();
-    if (result) break;
-    await new Promise(resolve => setTimeout(resolve, intervalMs)); // wait before next check
-  }
-}
-
 const getTicketFromZendeskAPI = async (accessToken, log: Logger, result) => {
     let isStage = false;  // TODO: change this to false when we deploy this Azure Functions to Production
 

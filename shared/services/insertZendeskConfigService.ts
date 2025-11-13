@@ -37,11 +37,11 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
             });
 
             if (patchResponse.ok) {
-                log(`✅ Updated record ${recordId}`);
+                log(`✅ Updated ZendeskConfig record ${recordId}`);
                 return "UPDATE";
             } else {
                 const err = await patchResponse.text();
-                throw new Error(`Failed to update record: ${err}`);
+                throw new Error(`Failed to update ZendeskConfig record: ${err}`);
             }
         } 
         // 3️⃣ If not found, create a new record (POST)
@@ -58,11 +58,11 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
 
             if (postResponse.ok) {
                 const entityId = postResponse.headers.get("OData-EntityId");
-                log(`✅ Created new record: ${entityId}`);
+                log(`✅ Created new ZendeskConfig record: ${entityId}`);
                 return "INSERT";
             } else {
                 const err = await postResponse.text();
-                throw new Error(`Failed to create record: ${err}`);
+                throw new Error(`Failed to create ZendeskConfig record: ${err}`);
             }
         }
     } catch (err) {

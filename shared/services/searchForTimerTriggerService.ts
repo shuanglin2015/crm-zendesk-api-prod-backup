@@ -464,12 +464,6 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
     };
 
     await processTicketDataService.upsertZendeskTicket(log, accessToken, ticket);
-    if (result == "UPDATE") {
-        log('Updated one ticket:');
-    }
-    if (result == "INSERT") {
-        log('Inserted one ticket:');
-    }
     log(ticket);
 
     return ticket;

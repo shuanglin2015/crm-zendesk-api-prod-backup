@@ -1,7 +1,5 @@
 import { AzureFunction, Context, Logger } from "@azure/functions"
-import processDataService from '../shared/services/insertZendeskTicketsService';
 import searchService from '../shared/services/searchForTimerTriggerService';
-import util from '../shared/utils/util';
 import crmUtil from '../shared/utils/crmUtil';
 
 const timerTrigger: AzureFunction = async function (context: Context, myTimer: any): Promise<void> {
@@ -31,8 +29,6 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
     let createdDateEnd = twoDaysLater.toISOString().split('T')[0];
 
     try {
-        let update = 0;
-        let insert = 0;
         let accessToken = await crmUtil.getAccessToken(log);
         // get latest updated at value from CRM
         const latestUpdatedAt = await searchService.getLatestUpdatedAtValue(accessToken, log);
@@ -40,18 +36,8 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
             updatedDateStart = latestUpdatedAt;
         }
         const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, '', '');
-        await util.asyncForEach(items, async ticket => {
-            let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
-            if (result == "UPDATE") {
-                update += 1;
-            }
-            if (result == "INSERT") {
-                insert += 1;
-            }
-        });
-
-        let result = `Inserted ${insert} records, updated ${update} records.`;
-        result += JSON.stringify(items);
+        let totalRecords = items && items.length;
+        let result = `Upserted ${totalRecords} tickets`;
         log(result);
     } catch (error) {
         log("Error occurred in insertZendeskTicketsTimerTrigger API - " + error.message);

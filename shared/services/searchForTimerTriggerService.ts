@@ -4,10 +4,11 @@ import envUtil from '../utils/envUtil';
 import util from '../utils/util';
 import getJsonByIdService from '../services/getJsonByIdService';
 import processDataService from "../services/insertZendeskConfigService";
+import processTicketDataService from '../services/insertZendeskTicketsService';
 
-const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string, ticketId: string = '') => {
+const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string, ticketId: string = '', withoutUpdatedDate = 'false') => {
     const processName = 'searchForTimerTriggerService.retrieveData';
-    log(`🔎 [${processName}] Start retrieving Zendesk tickets updated between ${updatedDateStart} and ${updatedDateEnd}, created between ${createdDateStart} and ${createdDateEnd}...`);
+    log(`🔎 [${processName}] Start retrieving Zendesk tickets updated between ${updatedDateStart} and ${updatedDateEnd}, created between ${createdDateStart} and ${createdDateEnd}...(withoutUpdatedDate: ${withoutUpdatedDate})`);
 
     const options = {
         method: 'get',
@@ -71,6 +72,9 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         */
         //let apiUrl = `${baseUrl}/search?query=type:ticket updated>${updatedDateStart} updated<${updatedDateEnd} created>${createdDateStart} created<${createdDateEnd}&per_page=${limit}&sort_by=created_at&sort_order=desc`;
         let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
+        if (withoutUpdatedDate == 'true') {
+            apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
+        }
         try {
             await waitUntilNextMinute();
             let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
@@ -442,8 +446,7 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
     //const resolveTimeInfo = await getResolveTimeInfo(log, result);
 
     /* 
-        "im360_name" is same with "im360_ticketsubjectline";
-        if "im360_resolved_at" is empty, set its value to "result.created_at" (resolveHours will be 0)
+        don't use "im360_ticketsubjectline", let's use "im360_name" instead
     */
     let ticket = {
         im360_ticketid: result.id ? result.id.toString() : '-',
@@ -452,16 +455,23 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
         im360_ingrambcn: result.strBCN ? result.strBCN : '-',
         im360_partneremailaddress: result.requesterEmail ? result.requesterEmail : '-',
         im360_resellername: result.requesterName ? result.requesterName : '-',
-        im360_ticketsubjectline: result.subject ? result.subject : '-',
         im360_status: result.status ? result.status.charAt(0).toUpperCase() + result.status.slice(1) : '-',
         im360_domain: result.strDomain ? result.strDomain : '-',
         im360_priority: result.priority ? result.priority.charAt(0).toUpperCase() + result.priority.slice(1) : '-',
         im360_accountid: result.strAccountId ? result.strAccountId : '-',
         im360_created_at: result.created_at ? result.created_at : new Date(),
         im360_updated_at: result.updated_at ? result.updated_at : result.created_at,
-        // im360_resolved_at:  resolveTimeInfo.solved_at ? resolveTimeInfo.solved_at : result.created_at,
-        // im360_resolvehours: resolveTimeInfo.resolveHours ? resolveTimeInfo.resolveHours : 0
     };
+
+    await processTicketDataService.upsertZendeskTicket(log, accessToken, ticket);
+    if (result == "UPDATE") {
+        log('Updated one ticket:');
+    }
+    if (result == "INSERT") {
+        log('Inserted one ticket:');
+    }
+    log(ticket);
+
     return ticket;
 }
 

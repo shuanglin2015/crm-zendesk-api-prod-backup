@@ -1,7 +1,5 @@
 import { AzureFunction, Context, HttpRequest, Logger } from "@azure/functions"
-import processDataService from '../shared/services/insertZendeskTicketsService';
 import searchService from '../shared/services/searchForTimerTriggerService';
-import util from '../shared/utils/util';
 import crmUtil from '../shared/utils/crmUtil';
 
 const httpTrigger: AzureFunction = async function (context: Context, req: HttpRequest): Promise<void> {
@@ -54,10 +52,12 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
 
     let onlySyncLatestData = req.query.onlySyncLatestData;
     let endPage = req.query.endPage;
+    let withoutUpdatedDate = req.query.withoutUpdatedDate;
+    if (!withoutUpdatedDate) {
+        withoutUpdatedDate = 'false';
+    }
 
     try {
-        let update = 0;
-        let insert = 0;
         let accessToken = await crmUtil.getAccessToken(log);
 
         if (onlySyncLatestData && onlySyncLatestData.toLowerCase() === 'true') {
@@ -68,19 +68,10 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
             }
         }
 
-        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName, endPage);
-        await util.asyncForEach(items, async ticket => {
-            let result = await processDataService.upsertZendeskTicket(log, accessToken, ticket);
-            if (result == "UPDATE") {
-                update += 1;
-            }
-            if (result == "INSERT") {
-                insert += 1;
-            }
-        });
+        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName, endPage, '', withoutUpdatedDate);
 
-        let body = `<br>Inserted ${insert} records, updated ${update} records.`;
-        body += "<br><br>" + JSON.stringify(items);
+        let totalRecords = items && items.length;
+        let body = `<br>Upserted ${totalRecords} tickets`;
         context.res = {
             headers: {
                 "Content-Type": "text/html"

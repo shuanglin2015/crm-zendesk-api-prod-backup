@@ -86,7 +86,6 @@ export default {
         "im360_priority": "Normal",
         "im360_resellername": "Sampan Somani",
         "im360_status": "Solved",
-        "im360_ticketsubjectline": "My orders are failing. I need immediate attention to solve order failure issue.",
         "im360_zendeskticketsid": "40945691-a767-e911-a96a-000d3a30e34c",
         "im360_created_at": ""2025-10-10T06:13:51Znew Date()"",
         "im360_updated_at ": "2025-10-10T14:29:47Z",

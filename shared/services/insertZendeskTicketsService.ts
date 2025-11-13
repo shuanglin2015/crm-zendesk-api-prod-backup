@@ -36,11 +36,11 @@ const  upsertZendeskTicket = async (log: Logger, accessToken: string, ticketData
             });
 
             if (patchResponse.ok) {
-                log(`✅ Updated record ${recordId}`);
+                log(`✅ Updated ticket ${recordId}`);
                 return "UPDATE";
             } else {
                 const err = await patchResponse.text();
-                throw new Error(`Failed to update record: ${err}`);
+                throw new Error(`Failed to update ticket: ${err}`);
             }
         } 
         // 3️⃣ If not found, create a new record (POST)
@@ -57,11 +57,11 @@ const  upsertZendeskTicket = async (log: Logger, accessToken: string, ticketData
 
             if (postResponse.ok) {
                 const entityId = postResponse.headers.get("OData-EntityId");
-                log(`✅ Created new record: ${entityId}`);
+                log(`✅ Created new ticket: ${entityId}`);
                 return "INSERT";
             } else {
                 const err = await postResponse.text();
-                throw new Error(`Failed to create record: ${err}`);
+                throw new Error(`Failed to create ticket: ${err}`);
             }
         }
     } catch (err) {

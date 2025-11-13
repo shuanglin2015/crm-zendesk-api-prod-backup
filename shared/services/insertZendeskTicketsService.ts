@@ -37,6 +37,7 @@ const  upsertZendeskTicket = async (log: Logger, accessToken: string, ticketData
 
             if (patchResponse.ok) {
                 log(`✅ Updated ticket ${recordId}`);
+                log(ticketData);
                 return "UPDATE";
             } else {
                 const err = await patchResponse.text();
@@ -58,6 +59,7 @@ const  upsertZendeskTicket = async (log: Logger, accessToken: string, ticketData
             if (postResponse.ok) {
                 const entityId = postResponse.headers.get("OData-EntityId");
                 log(`✅ Created new ticket: ${entityId}`);
+                log(ticketData);
                 return "INSERT";
             } else {
                 const err = await postResponse.text();

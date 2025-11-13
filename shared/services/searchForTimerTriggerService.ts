@@ -464,8 +464,7 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
     };
 
     await processTicketDataService.upsertZendeskTicket(log, accessToken, ticket);
-    log(ticket);
-
+    
     return ticket;
 }
 

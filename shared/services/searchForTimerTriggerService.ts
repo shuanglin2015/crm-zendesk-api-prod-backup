@@ -39,7 +39,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
                 finalResultsForOneTicket = await getFinalResultsForOneTicket(accessToken, log, response);
             }
         } catch (err: any) {
-            console.error(`[searchForOneTicketService] error(ticketId: ${ticketId}): ${err && err.message}.`);
+            log(`❌ [searchForOneTicketService] error(ticketId: ${ticketId}): ${err && err.message}.`);
         }
         return finalResultsForOneTicket;
     }
@@ -76,7 +76,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
             apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
         }
         try {
-            await waitUntilNextMinute();
+            await waitUntilNextMinute(log);
             let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
             while (true) {
                 if (remaining < API_LIMIT_THRESHOLD) {
@@ -112,7 +112,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
                         sleepMs = Math.max(sleepMs, parsed * 1000);
                     }
                 }
-                console.error(`[${processName}] 429 rate limited (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
+                log(`❌ [${processName}] 429 rate limited (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
                 await sleep(sleepMs);
                 continue;
             }
@@ -120,7 +120,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
             // Server errors -> retry
             if (response.status >= 500 && response.status < 600) {
                 const sleepMs = computeBackoff(attempt);
-                console.error(`[${processName}] Server error ${response.status} (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
+                log(`❌ [${processName}] Server error ${response.status} (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
                 await sleep(sleepMs);
                 continue;
             }
@@ -130,7 +130,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         } catch (err: any) {
             // If API error and response exists, then the status handled above. Otherwise network error.
             const sleepMs = computeBackoff(attempt);
-            console.error(`[${processName}] Network error on attempt ${attempt}/${MAX_RETRIES}: ${err.message || err}. Backing off ${sleepMs}ms`);
+            log(`❌ [${processName}] Network error on attempt ${attempt}/${MAX_RETRIES}: ${err.message || err}. Backing off ${sleepMs}ms`);
             await sleep(sleepMs);
             continue;
         }
@@ -148,24 +148,24 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
  *
  * @param {string} processName - Task context for error logging
  */
-const waitUntilNextMinute = async (processName = "WAIT_UNTIL_NEXT_MINUTE") => {
+const waitUntilNextMinute = async (log: Logger, processName = "WAIT_UNTIL_NEXT_MINUTE") => {
   try {
     const now = new Date();
     const seconds = now.getUTCSeconds();
 
     if (seconds !== 0) {
       const secondsToWait = 60 - seconds;
-      console.info(
+      log(
         `⏳ Waiting ${secondsToWait.toFixed(
           2
         )}s until the start of the next minute...`
       );
       await new Promise((resolve) => setTimeout(resolve, secondsToWait * 1000));
     } else {
-      console.info("✅ Aligned to minute boundary. Proceeding...");
+      log("✅ Aligned to minute boundary. Proceeding...");
     }
   } catch (e) {
-    console.error(`❌ Exception in ${processName}: ${e}`);
+    log(`❌ Exception in ${processName}: ${e}`);
   }
 };
 
@@ -240,7 +240,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
         await loopUntil(async () => {
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
-                    await waitUntilNextMinute();
+                    await waitUntilNextMinute(log);
                     let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
                     while (true) {
                         if (remaining < API_LIMIT_THRESHOLD) {
@@ -292,6 +292,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         countQuit += 1;
                         if (countQuit > 20) {
                             attempt = MAX_RETRIES;
+                            log(`❌ [Stopping...] Tried 20 times, still cannot get 200 response status for ${newApiUrl}`);
                             return true;  // stop after 20 attempts if the status is not 200
                         }
                     }
@@ -306,7 +307,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                                 sleepMs = Math.max(sleepMs, parsed * 1000);
                             }
                         }
-                        console.error(`[${processName}] 429 rate limited (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
+                        log(`❌ [${processName}] 429 rate limited (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
                         await sleep(sleepMs);
                         continue;
                     }
@@ -314,7 +315,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                     // Server errors -> retry
                     if (newResponse.status >= 500 && newResponse.status < 600) {
                         const sleepMs = computeBackoff(attempt);
-                        console.error(`[${processName}] Server error ${newResponse.status} (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
+                        log(`❌ [${processName}] Server error ${newResponse.status} (attempt ${attempt}/${MAX_RETRIES}). Sleeping ${sleepMs}ms.`);
                         await sleep(sleepMs);
                         continue;
                     }
@@ -324,7 +325,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                 } catch (err: any) {
                     // If API error and newResponse exists, then the status handled above. Otherwise network error.
                     const sleepMs = computeBackoff(attempt);
-                    console.error(`[${processName}] Network error on attempt ${attempt}/${MAX_RETRIES}: ${err.message || err}. Backing off ${sleepMs}ms`);
+                    log(`❌ [${processName}] Network error on attempt ${attempt}/${MAX_RETRIES}: ${err.message || err}. Backing off ${sleepMs}ms`);
                     await sleep(sleepMs);
                     continue;
                 }

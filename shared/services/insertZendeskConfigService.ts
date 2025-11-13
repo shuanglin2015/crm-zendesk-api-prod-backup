@@ -38,6 +38,7 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
 
             if (patchResponse.ok) {
                 log(`✅ Updated ZendeskConfig record ${recordId}`);
+                log (configData);
                 return "UPDATE";
             } else {
                 const err = await patchResponse.text();
@@ -58,7 +59,8 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
 
             if (postResponse.ok) {
                 const entityId = postResponse.headers.get("OData-EntityId");
-                log(`✅ Created new ZendeskConfig record: ${entityId}`);
+                log (`✅ Created new ZendeskConfig record: ${entityId}`);
+                log (configData);
                 return "INSERT";
             } else {
                 const err = await postResponse.text();

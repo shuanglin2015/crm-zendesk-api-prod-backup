@@ -2,13 +2,26 @@ import { Logger } from '@azure/functions';
 import fetch from 'node-fetch';
 
 const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData) => {
-    const { im360_category, im360_key, im360_value } = configData;
+    const { im360_name, im360_category, im360_key, im360_value } = configData;
     let crmUrl = process.env.CRM_URL || "";
+
+    if (!im360_key) {
+        log.error("❌ im360_key is empty");
+        return;
+    }
+
+    if (!im360_value) {
+        log.error("❌ im360_value is empty");
+        return;
+    }
 
     try {
         // 1️⃣ Check if the record already exists
         // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$filter=im360_category eq 'ticket_fields' and im360_key eq '31042462931476' and im360_value eq 'gbl_cs_skill_subscription'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$filter=im360_category eq '${im360_category}' and im360_key eq '${im360_key}' and im360_value eq '${im360_value}'`;
+        let query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$filter=im360_category eq '${im360_category}' and im360_key eq '${im360_key}' and im360_value eq '${im360_value}'`;
+        if (im360_key == 'fastSync_CreatedAt') {
+            query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$filter=im360_category eq '${im360_category}' and im360_key eq '${im360_key}'`;
+        }
         const getResponse = await fetch(query, {
             method: "GET",
             headers: {
@@ -37,8 +50,12 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
             });
 
             if (patchResponse.ok) {
-                log(`✅ Updated ZendeskConfig record ${recordId}`);
-                log (configData);
+                if (im360_key == 'fastSync_CreatedAt') {
+                    log(`✅ Updated ZendeskConfig record for fast sync ${recordId} - ${im360_name}`);
+                } else {
+                    log(`✅ Updated ZendeskConfig record ${recordId}`);
+                    log (configData);
+                }
                 return "UPDATE";
             } else {
                 const err = await patchResponse.text();

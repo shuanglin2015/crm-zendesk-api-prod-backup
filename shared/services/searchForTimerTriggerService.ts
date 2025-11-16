@@ -6,7 +6,7 @@ import getJsonByIdService from '../services/getJsonByIdService';
 import processDataService from "../services/insertZendeskConfigService";
 import processTicketDataService from '../services/insertZendeskTicketsService';
 
-const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string, ticketId: string = '', withoutUpdatedDate = 'false') => {
+const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: string, updatedDateEnd: string, createdDateStart: string, createdDateEnd: string, limit: string = '50', formName: string, endPage: string, ticketId: string = '', withoutUpdatedDate = 'false', zendeskCountry = '') => {
     const processName = 'searchForTimerTriggerService.retrieveData';
     log(`🔎 [${processName}] Start retrieving Zendesk tickets updated between ${updatedDateStart} and ${updatedDateEnd}, created between ${createdDateStart} and ${createdDateEnd}...(withoutUpdatedDate: ${withoutUpdatedDate})`);
 
@@ -68,10 +68,14 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         /* 
             Sample apiUrl: 
             'https://ingrammicrosupport.zendesk.com/api/v2/search?query=type:ticket form:"gbl - support" created>"2025-05-17T00:00:00.000Z" created<"2025-11-17"&per_page=50&sort_by=created_at&sort_order=asc'
+            https://ingrammicrosupport.zendesk.com/api/v2/search.json?query=((type:ticket custom_field_35138178531732:"gbl_cs_country_united_states") OR (type:ticket custom_field_35138178531732:"gbl_cs_country_united_kingdom")) form:"gbl - support" created>"2025-05-17T00:00:00.000Z"&per_page=50&sort_by=created_at&sort_order=asc
         */
         let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=created_at&sort_order=asc`;
         if (withoutUpdatedDate == 'true') {
             apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=created_at&sort_order=asc`;
+            if (zendeskCountry) {
+                apiUrl = `${baseUrl}/search?query=type:ticket custom_field_35138178531732:"${zendeskCountry}" form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=created_at&sort_order=asc`;
+            }
         }
         try {
             //await waitUntilNextMinute(log);
@@ -95,7 +99,7 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
             
             // 200 OK
             if (response.status === 200) {
-                finalResults = await getFinalResults(accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs);
+                finalResults = await getFinalResults(accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs, zendeskCountry);
                 attempt = MAX_RETRIES;
                 return finalResults;
             }
@@ -222,7 +226,7 @@ const getFinalResultsForOneTicket = async (accessToken, log, response) => {
     return finalResults;
 }
 
-const getFinalResults = async (accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs) => {
+const getFinalResults = async (accessToken, log, response, options, processName, endPage, API_LIMIT_THRESHOLD, baseUrl, apiCounter, getRateLimitStatus, waitUntilNextMinute, incrementalApiCallGapIntMs, zendeskCountry) => {
     const MAX_RETRIES = 6;
     let finalResults = [];
     let body = await response.json();
@@ -236,6 +240,9 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                 if (ticket) {
                     finalResults.push(ticket);
                 }
+            } else {
+                const onlyUpdateConfig = true;
+                await getTicketFromZendeskAPIResult(accessToken, log, result, onlyUpdateConfig, zendeskCountry);
             }
         });
     }
@@ -270,9 +277,16 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                         if (newBody && newBody.results) {
                             let newItems = newBody.results;
                             await util.asyncForEach(newItems, async result => {
-                                let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
-                                if (ticket) {
-                                    finalResults.push(ticket);
+                                let ticketId = result.id;
+                                let ticketExist = await checkTicketByTicketId(ticketId, accessToken, log);
+                                if (!ticketExist) {
+                                    let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
+                                    if (ticket) {
+                                        finalResults.push(ticket);
+                                    }
+                                }   else {
+                                    const onlyUpdateConfig = true;
+                                    await getTicketFromZendeskAPIResult(accessToken, log, result, onlyUpdateConfig, zendeskCountry);
                                 }
                             });
                         }
@@ -288,7 +302,9 @@ const getFinalResults = async (accessToken, log, response, options, processName,
                                     endPageStr = "10";
                                 }
                                 const endPageNumber =  Number(endPageStr) ;
-                                if (endPageNumber <= pageNumber) {
+
+                                // it's getting problems when the pageNumber is 21, so stop it when pageNumber is 20:
+                                if (pageNumber >= 20 || endPageNumber <= pageNumber) {
                                     return true;  // stop when it reaches the end page number
                                 }
                             }
@@ -367,7 +383,19 @@ const loopUntil = async (conditionFn, intervalMs = 10000) => {
   }
 }
 
-const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) => {
+const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, onlyUpdateConfig = false, zendeskCountry = '') => {
+    result.strResolveHours = toUnix(result.created_at);   // save "created_at" value to strResolveHours temporarily to get latest created_at value in CRM
+    let itemForFastSync = {
+        im360_category: zendeskCountry,
+        im360_key: 'fastSync_CreatedAt', 
+        im360_value: result.strResolveHours && result.strResolveHours.toString(),
+        im360_name: result.created_at && result.created_at.toString()
+    };
+    if (onlyUpdateConfig) {
+        await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
+        return;
+    }
+
     let isStage = false;  // Production
 
     // GBL - Support (30549887549716)
@@ -448,8 +476,7 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
             await processDataService.upsertZendeskConfig(log, accessToken, configData);
         }
     }
-
-    result.strResolveHours = toUnix(result.created_at);   // save "created_at" value to strResolveHours temporarily to get latest created_at value in CRM
+    await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
 
     /* 
         don't use "im360_ticketsubjectline", let's use "im360_name" instead
@@ -488,6 +515,28 @@ const getCustomFieldValue = async (log: Logger, fieldId: string, fieldValue: str
     if (fieldData && fieldData.ticket_field && fieldData.ticket_field.custom_field_options) {
         const obj = fieldData.ticket_field.custom_field_options.find(item => item.value === fieldValue);
         result = obj ? obj.name : fieldValue;
+    }
+    return result && result.trim();
+};
+
+/*
+{
+    "id": 35138188166804,
+    "name": "United States",
+    "raw_name": "United States",
+    "value": "gbl_cs_country_united_states",
+    "default": false
+},
+*/
+const getCustomFieldCountryValue = async (log: Logger, fieldId: string, countryName: string) => {
+    let result = '';
+    let jsonId = fieldId;
+    let jsonPath = 'ticket_fields/';
+    let fieldDataResult = fieldId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
+    let fieldData = fieldDataResult ? await fieldDataResult.json() : '';
+    if (fieldData && fieldData.ticket_field && fieldData.ticket_field.custom_field_options) {
+        const obj = fieldData.ticket_field.custom_field_options.find(item => item.name.toLowerCase().trim() === countryName.toLowerCase().trim());
+        result = obj ? obj.value : '';
     }
     return result && result.trim();
 };
@@ -579,33 +628,19 @@ const getZendeskConfigNameByValue = async (accessToken: string, log: Logger, con
     return configName;
 }
 
-const getLatestCreatedAtValue = async (accessToken: string, log: Logger) => {
+const getLatestCreatedAtValue = async (accessToken: string, log: Logger, zendeskCountry) => {
     let latestValue = '';
 
     try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: 'https://im360p01.crm.dynamics.com/api/data/v9.2/im360_zendeskticketses?$select=im360_resolvehours,modifiedon&$orderby=im360_resolvehours desc&$top=1'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$select=im360_resolvehours,modifiedon&$orderby=im360_resolvehours desc&$top=1`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
-
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            latestValue = getData.value[0].im360_resolvehours;         // im360_resolvehours temporarily stores the "created_at" UNIX time value from Zendesk
-        }
+        let key = 'fastSync_CreatedAt';
+        latestValue = await checkConfigValueByKeyAndCategory(key, zendeskCountry, accessToken, log);
     } catch (err) {
         log("❌ Error in getLatestCreatedAtValue:", err.message);
     }
     const sixMonthAgoTime = '1747440000';
     let isoTime = latestValue ? latestValue : sixMonthAgoTime;
+
     return unixToIso(isoTime);
-    
 }
 
 const checkTicketByTicketId = async (ticketId, accessToken: string, log: Logger) => {
@@ -632,11 +667,101 @@ const checkTicketByTicketId = async (ticketId, accessToken: string, log: Logger)
         log("❌ Error in checkTicketByTicketId:", err.message);
         return false;
     }
+}
+
+const checkConfigValueByKeyAndCategory = async (im360_key, zendeskCountry, accessToken: string, log: Logger) => {
+
+    try {
+        let crmUrl = process.env.CRM_URL || "";
+        // example query: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$filter=im360_key eq 'fastSync_CreatedAt' and im360_category eq 'gbl_cs_country_australia'
+        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$filter=im360_key eq '${im360_key}' and im360_category eq '${zendeskCountry}'`;
+        const getResponse = await fetch(query, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Accept": "application/json"
+            }
+        });
+
+        const getData = await getResponse.json();
+        if (getData.value && getData.value.length > 0) {
+            const value = getData.value[0].im360_value; 
+            return value;
+        }
+        else {
+            return null;
+        }
+    } catch (err) {
+        log("❌ Error in checkConfigValueByKey:", err.message);
+        return false;
+    }
     
+}
+
+const getCapacityReport = async (accessToken) => {
+    const params = {
+    'api-version': '2020-10-01',
+    '$expand': 'properties.capacity,properties.addons',
+  };
+  const queryString = new URLSearchParams(params).toString();
+  const url = `https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?${queryString}`;
+  
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+    }
+  });
+
+  const result = await res.json();
+  return result;
+  // The received access token has been obtained from wrong audience or resource 'https://im360p04.crm6.dynamics.com'
+}
+
+const getActiveCountries = async (accessToken: string, log: Logger) => {
+    let countryNames = [];
+
+    try {
+        let crmUrl = process.env.CRM_URL || "";
+        // example: https://im360p04.crm6.dynamics.com/api/data/v9.2/im360_countries?$select=im360_name&$filter=statecode eq 0
+        const query = `${crmUrl}/api/data/v9.2/im360_countries?$select=im360_name&$filter=statecode eq 0`;
+        const getResponse = await fetch(query, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Accept": "application/json"
+            }
+        });
+
+        const clone = getResponse.clone();
+        const getData = clone ? await clone.json() : '';
+        if (getData && getData.value && getData.value.length > 0) {
+            getData.value.forEach(countryItem => {
+                countryNames.push(countryItem.im360_name);
+            });
+        }
+    } catch (err) {
+        log("❌ Error in getZendeskResellerNameByKey:", err.message);
+    }
+    return countryNames;
+}
+
+const buildCountrySearchQuery = (fieldId, countries) => {
+  const parts = countries.map(c => 
+    `(type:ticket custom_field_${fieldId}:"${c}")`
+  );
+  return parts.join(" OR ");
 }
 
 export default {
     retrieveData,
     getLatestCreatedAtValue,
-    checkTicketByTicketId
+    checkTicketByTicketId,
+    checkConfigValueByKeyAndCategory,
+    loopUntil,
+    getCapacityReport,
+    getActiveCountries,
+    getCustomFieldCountryValue,
+    buildCountrySearchQuery
 };

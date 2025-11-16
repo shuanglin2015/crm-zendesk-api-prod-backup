@@ -67,16 +67,14 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
         apiCounter['attempted'] += 1
         /* 
             Sample apiUrl: 
-            https://ingrammicrosupport1700367431.zendesk.com/api/v2/search?query=type:ticket updated>2025-11-06T21:10:56Z form:"gbl - support"
-            https://ingrammicrosupport1700367431.zendesk.com/api/v2/search?query=type:ticket updated>2025-10-13 updated<2025-10-17 created>2025-04-15 created<2025-10-17&per_page=50&sort_by=updated_at&sort_order=asc
+            'https://ingrammicrosupport.zendesk.com/api/v2/search?query=type:ticket form:"gbl - support" created>"2025-05-17T00:00:00.000Z" created<"2025-11-17"&per_page=50&sort_by=created_at&sort_order=asc'
         */
-        //let apiUrl = `${baseUrl}/search?query=type:ticket updated>${updatedDateStart} updated<${updatedDateEnd} created>${createdDateStart} created<${createdDateEnd}&per_page=${limit}&sort_by=created_at&sort_order=desc`;
-        let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
+        let apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" updated>"${updatedDateStart}" updated<"${updatedDateEnd}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=created_at&sort_order=asc`;
         if (withoutUpdatedDate == 'true') {
-            apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=updated_at&sort_order=asc`;
+            apiUrl = `${baseUrl}/search?query=type:ticket form:"${formName}" created>"${createdDateStart}" created<"${createdDateEnd}"&per_page=${limit}&sort_by=created_at&sort_order=asc`;
         }
         try {
-            await waitUntilNextMinute(log);
+            //await waitUntilNextMinute(log);
             let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
             while (true) {
                 if (remaining < API_LIMIT_THRESHOLD) {
@@ -138,6 +136,10 @@ const retrieveData = async (log: Logger, accessToken: string, updatedDateStart: 
 
     return finalResults;
 };
+
+const unixToIso = (unixSeconds) => {
+  return new Date(unixSeconds * 1000).toISOString();
+}
 
 /**
  * Align API calls to minute boundaries for consistent rate limiting.
@@ -227,9 +229,13 @@ const getFinalResults = async (accessToken, log, response, options, processName,
     if (body && body.results) {
         let items = body.results;
         await util.asyncForEach(items, async result => {
-            let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
-            if (ticket) {
-                finalResults.push(ticket);
+            let ticketId = result.id;
+            let ticketExist = await checkTicketByTicketId(ticketId, accessToken, log);
+            if (!ticketExist) {
+                let ticket = await getTicketFromZendeskAPIResult(accessToken, log, result);
+                if (ticket) {
+                    finalResults.push(ticket);
+                }
             }
         });
     }
@@ -240,7 +246,7 @@ const getFinalResults = async (accessToken, log, response, options, processName,
         await loopUntil(async () => {
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
-                    await waitUntilNextMinute(log);
+                    //await waitUntilNextMinute(log);
                     let remaining = await getRateLimitStatus(log, baseUrl, options, apiCounter);
                     while (true) {
                         if (remaining < API_LIMIT_THRESHOLD) {
@@ -442,9 +448,8 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
             await processDataService.upsertZendeskConfig(log, accessToken, configData);
         }
     }
-    //result.strAccountId = await getAccountIdByCountryAndBCN(accessToken, log, result.strCountry, result.strBCN);
-    result.strAccountId = result.updated_at;   // save "updated_at" value to strAccountId temporarily to get latest updated_at value in CRM
-    //const resolveTimeInfo = await getResolveTimeInfo(log, result);
+
+    result.strResolveHours = toUnix(result.created_at);   // save "created_at" value to strResolveHours temporarily to get latest created_at value in CRM
 
     /* 
         don't use "im360_ticketsubjectline", let's use "im360_name" instead
@@ -459,7 +464,7 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
         im360_status: result.status ? result.status.charAt(0).toUpperCase() + result.status.slice(1) : '-',
         im360_domain: result.strDomain ? result.strDomain : '-',
         im360_priority: result.priority ? result.priority.charAt(0).toUpperCase() + result.priority.slice(1) : '-',
-        im360_accountid: result.strAccountId ? result.strAccountId : '-',
+        im360_resolvehours: result.strResolveHours ? result.strResolveHours : '-',
         im360_created_at: result.created_at ? result.created_at : new Date(),
         im360_updated_at: result.updated_at ? result.updated_at : result.created_at,
     };
@@ -467,6 +472,11 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result) =
     await processTicketDataService.upsertZendeskTicket(log, accessToken, ticket);
     
     return ticket;
+}
+
+const toUnix = (dateString) => {
+  const time = Date.parse(dateString);
+  return isNaN(time) ? null : Math.floor(time / 1000);
 }
 
 const getCustomFieldValue = async (log: Logger, fieldId: string, fieldValue: string) => {
@@ -569,14 +579,13 @@ const getZendeskConfigNameByValue = async (accessToken: string, log: Logger, con
     return configName;
 }
 
-const getLatestUpdatedAtValue = async (accessToken: string, log: Logger) => {
+const getLatestCreatedAtValue = async (accessToken: string, log: Logger) => {
     let latestValue = '';
 
     try {
         let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskticketses?$select=im360_accountid,modifiedon&$orderby=modifiedon desc&$top=1
-        // Note: we cannot sort by "im360_updated_at" field, because it's string field, not datetime field, so we use "modifiedon" field to get the latest record (or "im360_accountid")
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$select=im360_accountid,modifiedon&$orderby=im360_accountid desc&$top=1`;
+        // example: 'https://im360p01.crm.dynamics.com/api/data/v9.2/im360_zendeskticketses?$select=im360_resolvehours,modifiedon&$orderby=im360_resolvehours desc&$top=1'
+        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$select=im360_resolvehours,modifiedon&$orderby=im360_resolvehours desc&$top=1`;
         const getResponse = await fetch(query, {
             method: "GET",
             headers: {
@@ -588,15 +597,46 @@ const getLatestUpdatedAtValue = async (accessToken: string, log: Logger) => {
         const clone = getResponse.clone();
         const getData = clone ? await clone.json() : '';
         if (getData && getData.value && getData.value.length > 0) {
-            latestValue = getData.value[0].im360_accountid;         // im360_accountid temporarily stores the "updated_at" value from Zendesk
+            latestValue = getData.value[0].im360_resolvehours;         // im360_resolvehours temporarily stores the "created_at" UNIX time value from Zendesk
         }
     } catch (err) {
-        log("❌ Error in getLatestUpdatedAtValue:", err.message);
+        log("❌ Error in getLatestCreatedAtValue:", err.message);
     }
-    return latestValue;
+    const sixMonthAgoTime = '1747440000';
+    let isoTime = latestValue ? latestValue : sixMonthAgoTime;
+    return unixToIso(isoTime);
+    
+}
+
+const checkTicketByTicketId = async (ticketId, accessToken: string, log: Logger) => {
+
+    try {
+        let crmUrl = process.env.CRM_URL || "";
+        const query = `${crmUrl}/api/data/v9.2/im360_zendeskticketses?$filter=im360_ticketid eq '${ticketId}'`;
+        const getResponse = await fetch(query, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Accept": "application/json"
+            }
+        });
+
+        const getData = await getResponse.json();
+        if (getData.value && getData.value.length > 0) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    } catch (err) {
+        log("❌ Error in checkTicketByTicketId:", err.message);
+        return false;
+    }
+    
 }
 
 export default {
     retrieveData,
-    getLatestUpdatedAtValue
+    getLatestCreatedAtValue,
+    checkTicketByTicketId
 };

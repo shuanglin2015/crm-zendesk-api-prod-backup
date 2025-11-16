@@ -31,13 +31,17 @@ const timerTrigger: AzureFunction = async function (context: Context, myTimer: a
     try {
         let accessToken = await crmUtil.getAccessToken(log);
         // get latest updated at value from CRM
-        const latestUpdatedAt = await searchService.getLatestUpdatedAtValue(accessToken, log);
-        if (latestUpdatedAt && latestUpdatedAt != '-') {
-            updatedDateStart = latestUpdatedAt;
+        const latestCreatedAt = await searchService.getLatestCreatedAtValue(accessToken, log);
+        if (latestCreatedAt && latestCreatedAt != '-') {
+            createdDateStart = latestCreatedAt;
         }
-        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, '', '');
+        let formName = '';
+        let endPage = '';
+        let ticketId = '';
+        let withoutUpdatedDate = 'true';
+        const items = await searchService.retrieveData(log, accessToken, updatedDateStart, updatedDateEnd, createdDateStart, createdDateEnd, limit, formName, endPage, ticketId, withoutUpdatedDate);
         let totalRecords = items && items.length;
-        let result = `Upserted ${totalRecords} tickets`;
+        let result = `Created ${totalRecords} tickets`;
         log(result);
     } catch (error) {
         log("Error occurred in insertZendeskTicketsTimerTrigger API - " + error.message);

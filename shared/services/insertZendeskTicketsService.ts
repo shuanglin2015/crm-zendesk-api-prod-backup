@@ -20,29 +20,29 @@ const  upsertZendeskTicket = async (log: Logger, accessToken: string, ticketData
 
         // 2️⃣ If record exists, update it (PATCH)
         if (getData.value && getData.value.length > 0) {
-            const recordId = getData.value[0].im360_zendeskticketsid; // primary key GUID of the record
-            const updatePayload = ticketData;
+            // const recordId = getData.value[0].im360_zendeskticketsid; // primary key GUID of the record
+            // const updatePayload = ticketData;
 
-            const patchUrl = `${crmUrl}/api/data/v9.2/im360_zendeskticketses(${recordId})`;
+            // const patchUrl = `${crmUrl}/api/data/v9.2/im360_zendeskticketses(${recordId})`;
 
-            const patchResponse = await fetch(patchUrl, {
-                method: "PATCH",
-                headers: {
-                    "Authorization": `Bearer ${accessToken}`,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify(updatePayload)
-            });
+            // const patchResponse = await fetch(patchUrl, {
+            //     method: "PATCH",
+            //     headers: {
+            //         "Authorization": `Bearer ${accessToken}`,
+            //         "Content-Type": "application/json",
+            //         "Accept": "application/json"
+            //     },
+            //     body: JSON.stringify(updatePayload)
+            // });
 
-            if (patchResponse.ok) {
-                log(`✅ Updated ticket ${recordId}`);
-                log(ticketData);
-                return "UPDATE";
-            } else {
-                const err = await patchResponse.text();
-                throw new Error(`Failed to update ticket: ${err}`);
-            }
+            // if (patchResponse.ok) {
+            //     log(`✅ Updated ticket ${recordId}`);
+            //     log(ticketData);
+            //     return "UPDATE";
+            // } else {
+            //     const err = await patchResponse.text();
+            //     throw new Error(`Failed to update ticket: ${err}`);
+            // }
         } 
         // 3️⃣ If not found, create a new record (POST)
         else {
@@ -82,7 +82,6 @@ export default {
         "im360_name": "Zendesk Ticket from Azure Function",
         "im360_country": "United Kingdom",
         "im360_ingrambcn": "20666904",
-        "im360_accountid": "8e70a94a-9a02-e911-a961-000d3a30e34c",
         "im360_domain": "Integrations",
         "im360_partneremailaddress": "sampat.somani@ingrammicro.com",
         "im360_priority": "Normal",

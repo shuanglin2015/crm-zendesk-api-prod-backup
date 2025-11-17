@@ -476,7 +476,9 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
             await processDataService.upsertZendeskConfig(log, accessToken, configData);
         }
     }
-    await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
+    if (itemForFastSync.im360_category) {
+        await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
+    }
 
     /* 
         don't use "im360_ticketsubjectline", let's use "im360_name" instead

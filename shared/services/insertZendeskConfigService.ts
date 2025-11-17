@@ -5,8 +5,18 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
     const { im360_name, im360_category, im360_key, im360_value } = configData;
     let crmUrl = process.env.CRM_URL || "";
 
+    if (!im360_name) {
+        log.error("❌ im360_name is empty");
+        return;
+    }
+
     if (!im360_key) {
         log.error("❌ im360_key is empty");
+        return;
+    }
+
+    if (!im360_category) {
+        log.error("❌ im360_category is empty");
         return;
     }
 
@@ -51,7 +61,7 @@ const  upsertZendeskConfig = async (log: Logger, accessToken: string, configData
 
             if (patchResponse.ok) {
                 if (im360_key == 'fastSync_CreatedAt') {
-                    log(`✅ Updated ZendeskConfig record for fast sync ${recordId} - ${im360_name}`);
+                    log(`✅ Updated ZendeskConfig record for fast sync ${recordId} - ${im360_name} - ${im360_category}`);
                 } else {
                     log(`✅ Updated ZendeskConfig record ${recordId}`);
                     log (configData);

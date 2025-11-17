@@ -406,15 +406,25 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
     result.strCountry = await getZendeskConfigNameByValue(accessToken, log, countryValue);
     if (!result.strCountry) {
         result.strCountry = countryValue ? await getCustomFieldValue(log, countryFieldId.toString(), countryValue) : '';
-        if (countryValue && result.strCountry) {
-            const configData = {
-                        im360_category: 'ticket_fields',
-                        im360_key: countryFieldId.toString(),
-                        im360_value: countryValue,
-                        im360_name: result.strCountry
-                    };
-            await processDataService.upsertZendeskConfig(log, accessToken, configData);
-        }
+
+
+
+
+
+
+
+        // comment out the following to reduce IM360 calls
+
+
+        // if (countryValue && result.strCountry) {
+        //     const configData = {
+        //                 im360_category: 'ticket_fields',
+        //                 im360_key: countryFieldId.toString(),
+        //                 im360_value: countryValue,
+        //                 im360_name: result.strCountry
+        //             };
+        //     await processDataService.upsertZendeskConfig(log, accessToken, configData);
+        // }
     }
     let bcnFieldId = isStage ? 21077919616660 : 9213900294676;
     const objBCN = result.custom_fields && result.custom_fields.find(item => item.id === bcnFieldId);
@@ -427,17 +437,27 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
         let userDataResult = jsonId ? await getJsonByIdService.retrieveData(log, jsonPath, jsonId) : '';
         let userData = userDataResult ? await userDataResult.json() : '';
         result.requesterEmail = userData.user ? userData.user.email : '-';
-        if (jsonId && result.requesterEmail) {
-            // upsert user:
-            const configData = {
-                    im360_category: 'users',
-                    im360_key: jsonId.toString(),
-                    im360_value: userData && userData.user && userData.user.role,
-                    im360_name: result.requesterEmail,
-                    im360_description: userData && userData.user && userData.user.name
-                };
-            await processDataService.upsertZendeskConfig(log, accessToken, configData);
-        }
+
+
+
+
+
+
+
+
+        // comment out the following to reduce IM360 calls
+
+        // if (jsonId && result.requesterEmail) {
+        //     // upsert user:
+        //     const configData = {
+        //             im360_category: 'users',
+        //             im360_key: jsonId.toString(),
+        //             im360_value: userData && userData.user && userData.user.role,
+        //             im360_name: result.requesterEmail,
+        //             im360_description: userData && userData.user && userData.user.name
+        //         };
+        //     await processDataService.upsertZendeskConfig(log, accessToken, configData);
+        // }
     }
 
     // Reseller Name:
@@ -448,16 +468,25 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
         let orgDataResult = jsonIdOrg ? await getJsonByIdService.retrieveData(log, jsonPathOrg, jsonIdOrg) : '';
         let orgData = orgDataResult ? await orgDataResult.json() : '';
         result.requesterName = orgData.organization ? orgData.organization.name : '-';
-        if (jsonIdOrg && result.requesterName) {
-            // upsert organization:
-            const orgData = {
-                    im360_category: 'organizations',
-                    im360_key: jsonIdOrg.toString(),
-                    im360_value: result.requesterName,
-                    im360_name: result.requesterName
-                };
-            await processDataService.upsertZendeskConfig(log, accessToken, orgData);
-        }
+
+
+
+
+
+
+
+        // comment out the following to reduce IM360 calls
+
+        // if (jsonIdOrg && result.requesterName) {
+        //     // upsert organization:
+        //     const orgData = {
+        //             im360_category: 'organizations',
+        //             im360_key: jsonIdOrg.toString(),
+        //             im360_value: result.requesterName,
+        //             im360_name: result.requesterName
+        //         };
+        //     await processDataService.upsertZendeskConfig(log, accessToken, orgData);
+        // }
     }
     
     let domainFieldId = isStage ? 31042462931476 : 34698829065236;
@@ -466,15 +495,23 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
     result.strDomain = await getZendeskConfigNameByValue(accessToken, log, domainValue);
     if (!result.strDomain) {
         result.strDomain = domainValue? await getCustomFieldValue(log, domainFieldId.toString(), domainValue) : '';
-        if (domainValue && result.strDomain) {
-            const configData = {
-                        im360_category: 'ticket_fields',
-                        im360_key: domainFieldId.toString(),
-                        im360_value: domainValue,
-                        im360_name: result.strDomain
-                    };
-            await processDataService.upsertZendeskConfig(log, accessToken, configData);
-        }
+
+
+
+
+
+
+        // comment out the following to reduce IM360 calls
+
+        // if (domainValue && result.strDomain) {
+        //     const configData = {
+        //                 im360_category: 'ticket_fields',
+        //                 im360_key: domainFieldId.toString(),
+        //                 im360_value: domainValue,
+        //                 im360_name: result.strDomain
+        //             };
+        //     await processDataService.upsertZendeskConfig(log, accessToken, configData);
+        // }
     }
     if (itemForFastSync.im360_category) {
         await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
@@ -497,6 +534,8 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
         im360_created_at: result.created_at ? result.created_at : new Date(),
         im360_updated_at: result.updated_at ? result.updated_at : result.created_at,
     };
+
+    await sleep(3000);
 
     await processTicketDataService.upsertZendeskTicket(log, accessToken, ticket);
     
@@ -544,90 +583,113 @@ const getCustomFieldCountryValue = async (log: Logger, fieldId: string, countryN
 };
 
 const getZendeskResellerNameByKey = async (accessToken: string, log: Logger, configKey: string) => {
-    let configName = '';
-    if (!configKey) {
-        return configName;
-    }
 
-    try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'organizations' and im360_key eq '21077843577620' ("CDW")
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'organizations' and im360_key eq '${configKey}'`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
 
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            configName = getData.value[0].im360_name;
-        }
-    } catch (err) {
-        log("❌ Error in getZendeskResellerNameByKey:", err.message);
-    }
-    return configName;
+
+
+
+    return '';
+    // comment out the following to reduce IM360 calls
+
+    // let configName = '';
+    // if (!configKey) {
+    //     return configName;
+    // }
+
+    // try {
+    //     let crmUrl = process.env.CRM_URL || "";
+    //     // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'organizations' and im360_key eq '21077843577620' ("CDW")
+    //     const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'organizations' and im360_key eq '${configKey}'`;
+    //     const getResponse = await fetch(query, {
+    //         method: "GET",
+    //         headers: {
+    //             "Authorization": `Bearer ${accessToken}`,
+    //             "Accept": "application/json"
+    //         }
+    //     });
+
+    //     const clone = getResponse.clone();
+    //     const getData = clone ? await clone.json() : '';
+    //     if (getData && getData.value && getData.value.length > 0) {
+    //         configName = getData.value[0].im360_name;
+    //     }
+    // } catch (err) {
+    //     log("❌ Error in getZendeskResellerNameByKey:", err.message);
+    // }
+    // return configName;
 }
 
 const getZendeskConfigEmailByKey = async (accessToken: string, log: Logger, configKey: string) => {
-    let configName = '';
-    if (!configKey) {
-        return configName;
-    }
 
-    try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'users' and im360_key eq '36171835936404'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'users' and im360_key eq '${configKey}'`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
 
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            configName = getData.value[0].im360_name;
-        }
-    } catch (err) {
-        log("❌ Error in getZendeskConfigEmailByKey:", err.message);
-    }
-    return configName;
+
+
+    return '';
+    // comment out the following to reduce IM360 calls
+
+    // let configName = '';
+    // if (!configKey) {
+    //     return configName;
+    // }
+
+    // try {
+    //     let crmUrl = process.env.CRM_URL || "";
+    //     // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'users' and im360_key eq '36171835936404'
+    //     const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'users' and im360_key eq '${configKey}'`;
+    //     const getResponse = await fetch(query, {
+    //         method: "GET",
+    //         headers: {
+    //             "Authorization": `Bearer ${accessToken}`,
+    //             "Accept": "application/json"
+    //         }
+    //     });
+
+    //     const clone = getResponse.clone();
+    //     const getData = clone ? await clone.json() : '';
+    //     if (getData && getData.value && getData.value.length > 0) {
+    //         configName = getData.value[0].im360_name;
+    //     }
+    // } catch (err) {
+    //     log("❌ Error in getZendeskConfigEmailByKey:", err.message);
+    // }
+    // return configName;
 }
 
 const getZendeskConfigNameByValue = async (accessToken: string, log: Logger, configValue: string) => {
-    let configName = '';
-    if (!configValue) {
-        return configName;
-    }
 
-    try {
-        let crmUrl = process.env.CRM_URL || "";
-        // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'ticket_fields' and im360_value eq 'gbl_cs_skill_integration'
-        const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'ticket_fields' and im360_value eq '${configValue}'`;
-        const getResponse = await fetch(query, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Accept": "application/json"
-            }
-        });
 
-        const clone = getResponse.clone();
-        const getData = clone ? await clone.json() : '';
-        if (getData && getData.value && getData.value.length > 0) {
-            configName = getData.value[0].im360_name;
-        }
-    } catch (err) {
-        log("❌ Error in getZendeskConfigNameByValue:", err.message);
-    }
-    return configName;
+
+
+
+    return '';
+    // comment out the following to reduce IM360 calls
+
+    // let configName = '';
+    // if (!configValue) {
+    //     return configName;
+    // }
+
+    // try {
+    //     let crmUrl = process.env.CRM_URL || "";
+    //     // example: https://im360gbldev.crm.dynamics.com/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'ticket_fields' and im360_value eq 'gbl_cs_skill_integration'
+    //     const query = `${crmUrl}/api/data/v9.2/im360_zendeskconfigs?$select=im360_key,im360_name,im360_value&$filter=im360_category eq 'ticket_fields' and im360_value eq '${configValue}'`;
+    //     const getResponse = await fetch(query, {
+    //         method: "GET",
+    //         headers: {
+    //             "Authorization": `Bearer ${accessToken}`,
+    //             "Accept": "application/json"
+    //         }
+    //     });
+
+    //     const clone = getResponse.clone();
+    //     const getData = clone ? await clone.json() : '';
+    //     if (getData && getData.value && getData.value.length > 0) {
+    //         configName = getData.value[0].im360_name;
+    //     }
+    // } catch (err) {
+    //     log("❌ Error in getZendeskConfigNameByValue:", err.message);
+    // }
+    // return configName;
 }
 
 const getLatestCreatedAtValue = async (accessToken: string, log: Logger, zendeskCountry) => {

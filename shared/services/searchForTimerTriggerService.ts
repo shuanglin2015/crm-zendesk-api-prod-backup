@@ -398,6 +398,21 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
 
     let isStage = false;  // Production
 
+    // XDUS-8259 - No Response Necessary (NRN) flag
+    let isNRN = false;
+    if (result && result.tags && Array.isArray(result.tags)) {
+        result.tags.forEach(tag => {
+            if (isNRNTicket(tag)) {
+                isNRN = true;
+            }
+        });
+    }
+
+    if (isNRN) {
+        log(`Zendesk - Ticket ID ${result.id} is marked as No Response Necessary (NRN) ticket.`);
+        return null;
+    }
+
     // GBL - Support (30549887549716)
     // GBL - Partner Support (34539140148756)
     let countryFieldId = isStage ? 31959436739604 : 35138178531732;
@@ -480,9 +495,15 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
         await processDataService.upsertZendeskConfig(log, accessToken, itemForFastSync);
     }
 
-    /* 
-        don't use "im360_ticketsubjectline", let's use "im360_name" instead
-    */
+    // use "im360_ticketsubjectline" to save Platform value (XDUS-8293)
+    let platformFieldId = isStage ? 35415435690388 : 35228789545364;
+    const objPlatform = result.custom_fields && result.custom_fields.find(item => item.id === platformFieldId);
+    const platformValue = objPlatform ? objPlatform.value : '';
+    result.strPlatform = await getZendeskConfigNameByValue(accessToken, log, platformValue);
+    if (!result.strPlatform) {
+        result.strPlatform = platformValue? await getCustomFieldValue(log, platformFieldId.toString(), platformValue) : '';
+    }
+
     let ticket = {
         im360_ticketid: result.id ? result.id.toString() : '-',
         im360_name: result.subject ? result.subject : '-',
@@ -490,6 +511,7 @@ const getTicketFromZendeskAPIResult = async (accessToken, log: Logger, result, o
         im360_ingrambcn: result.strBCN ? result.strBCN : '-',
         im360_partneremailaddress: result.requesterEmail ? result.requesterEmail : '-',
         im360_resellername: result.requesterName ? result.requesterName : '-',
+        im360_ticketsubjectline: result.strPlatform ? result.strPlatform : '-',
         im360_status: result.status ? result.status.charAt(0).toUpperCase() + result.status.slice(1) : '-',
         im360_domain: result.strDomain ? result.strDomain : '-',
         im360_priority: result.priority ? result.priority.charAt(0).toUpperCase() + result.priority.slice(1) : '-',
@@ -755,6 +777,116 @@ const buildCountrySearchQuery = (fieldId, countries) => {
   );
   return parts.join(" OR ");
 }
+
+const isNRNTicket = (tag) => {
+    if (!tag || tag.length < 3) return false;
+
+    const trueTags = new Set([
+        "auto_close_nrn",
+        "ca_auto_close_nrn",
+        "ca_im_vendor_autoclose_nrn",
+        "ca_scc_cisco_categories_nrn_no_response_needed",
+        "ca_scc_cisco_nrn",
+        "ca_scc_cisco_nrn_sender",
+        "ca_support_im360_notifications_acct_10_rma_nrn",
+        "ca_support_im360_notifications_acct_40_rma_nrn",
+        "cisco_ops_nrn_closed",
+        "cisco_ops_nrn_sender",
+        "gbl_cat_spec_us_nrn_sql_dba_sender",
+        "gbl_cat_specialist_nrn",
+        "gbl_cat_specialist_nrn_sender",
+        "gbl_mdg_category_nrn",
+        "gbl_partner_support_autoclose_nrn",
+        "gbl_partner_support_nrn_sender",
+        "gbl_support_autoclose_nrn",
+        "gbl_support_nrn_closed",
+        "gbl_support_autosolve_nrn",
+        "gbl_tracking_gde_notification_aq_draft_nrn",
+        "gbl_tracking_gde_notification_aq_success_nrn",
+        "gbl_x4a_quotes_nrn",
+        "global_autoclose_nrn",
+        "global_nrn_closed",
+        "global_nrn_sender",
+        "hpe_cto_nrn_closed",
+        "la_cs_apple_nrn_sender",
+        "la_cs_nrn",
+        "la_cs_nrn_sender",
+        "la_la_new_accounts_request_type_nrn",
+        "la_request_type_nrn",
+        "la_sales_cisco_nrn_sender",
+        "la_sales_nrn",
+        "macro_la_cs_nrn",
+        "macro_la_new_accounts_nrn",
+        "macro_la_sales_nrn",
+        "macro_miami_la_buops_nrn",
+        "na_ar_credit_csam_nrn_sender",
+        "na_ar_credit_csam_request_type_nrn",
+        "na_ar_credit_drm_nrn_closed",
+        "na_ar_credit_drm_request_type_nrn",
+        "na_ar_credit_resale_nrn_closed",
+        "na_ar_credit_resale_request_type_nrn",
+        "nrn__no_response_needed_",
+        "pe_smb_sales_nrn_closed",
+        "per_categories_no_se_necesita_respuesta__nrn_",
+        "peru_smb_nrn_sender",
+        "tr_autoclose_nrn",
+        "tr_nrn_sender",
+        "us_adavanced_solutions_autoclose_nrn",
+        "us_advanced_solutions_nrn_sender",
+        "us_advanced_solutions_nrn_sender_cisco_commerce",
+        "us_advanced_solutions_nrn_sender_global_noreply_fortinet",
+        "us_advanced_solutions_nrn_sender_noreplycisco",
+        "us_advanced_solutions_nrn_sender_sonicwall_salessupport",
+        "us_category_email_nrn",
+        "us_cisco_md_hw_autoclose_nrn",
+        "us_cisco_md_svcs_cisco_sub_nrn_sender",
+        "us_cisco_meraki_autoclose_nrn",
+        "us_cisco_sales_cisco_nrn_sender",
+        "us_cisco_sales_nrn_sender",
+        "us_dell_csg_nrn",
+        "us_dell_federal_imedirpt_nrn_sender",
+        "us_dell_federal_nrn_sender",
+        "us_dellfed_nrn",
+        "us_emea_pcg_nrn",
+        "us_gohybrid_bid_parsing_nrn_sender",
+        "us_gohybrid_nrn_closed",
+        "us_hpe_aruba_support_category_nrn",
+        "us_hpe_aruba_support_nrn_closed",
+        "us_hpe_aruba_support_nrn_sender",
+        "us_hpe_cto_sfdc_sender_nrn",
+        "us_hpe_dayone_nrn_solved",
+        "us_hpe_nrn_sender",
+        "us_hpe_nrn_solve_hpeoperation_sender",
+        "us_ibm_tss_nrn",
+        "us_lenovo_isg_server_lenovo_nrn",
+        "us_lenovo_isg_server_nrn",
+        "us_modern_workforce_autoclose_nrn",
+        "us_modern_workforce_hpi_nrn",
+        "us_modern_workforce_hpi_sender_nrn",
+        "us_modern_workforce_ignite_sender_nrn",
+        "us_modern_workforce_lenovo_lbp_sender_nrn",
+        "us_modern_workforce_mssurface_warranties_nrn",
+        "us_modern_workforce_nrn_sender",
+        "us_modin_vmware_nrn_closed",
+        "us_modin_vmware_omnissa_sender_nrn",
+        "us_modin_vmware_prod_omnissa_sender_nrn",
+        "us_modin_vmware_prod_sender_nrn",
+        "us_modin_vmware_uspurchaseorder_sender_nrn",
+        "us_modin_x_1_veeam_nrn_closed",
+        "us_modin_x1_nrn_closed",
+        "us_modin_x1_nrn_sender",
+        "us_modin_x1_veeam_no_reply_sender_nrn",
+        "us_modin_x2_autoclose_nrn",
+        "us_modin_x2_nrn_sender",
+        "us_modin_x2_sbo_nrn_sender",
+        "us_modin_x3_autoclose_nrn",
+        "us_modin_x3_nrn_sender",
+        "us_modin_x3_panduit_nrn_sender_panduit"
+    ]);
+
+    return trueTags.has(tag) ? true : false;
+
+};
 
 export default {
     retrieveData,
